@@ -1,0 +1,9 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  plugins:
+    - custom_lint
+
+linter:
+  rules:
+    # Tambahkan/override rule spesifik tim di sini seiring project berjalan.
