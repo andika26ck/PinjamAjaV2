@@ -22,11 +22,17 @@ class SupabaseChatRepository implements ChatRepository {
   }
 
   @override
-  Future<List<Message>> fetchMessages(String bookingId) async {
+  Future<List<Message>> fetchMessages({
+    required String itemId,
+    required String otherUserId,
+  }) async {
+    final me = _uid;
     final data = await _client
         .from('messages')
         .select()
-        .eq('booking_id', bookingId)
+        .eq('item_id', itemId)
+        .or('and(sender_id.eq.$me,receiver_id.eq.$otherUserId),'
+            'and(sender_id.eq.$otherUserId,receiver_id.eq.$me)')
         .order('timestamp', ascending: true);
     final rows = (data as List).cast<Map<String, dynamic>>();
     return rows.map(Message.fromJson).toList();
@@ -34,8 +40,9 @@ class SupabaseChatRepository implements ChatRepository {
 
   @override
   Future<Message> sendMessage({
-    required String bookingId,
+    required String itemId,
     required String receiverId,
+    String? bookingId,
     required String text,
   }) async {
     final data = await _client
@@ -43,7 +50,8 @@ class SupabaseChatRepository implements ChatRepository {
         .insert({
           'sender_id': _uid,
           'receiver_id': receiverId,
-          'booking_id': bookingId,
+          'item_id': itemId,
+          if (bookingId != null) 'booking_id': bookingId,
           'message': text,
         })
         .select()
@@ -53,14 +61,16 @@ class SupabaseChatRepository implements ChatRepository {
 
   @override
   Future<void> markAsRead({
-    required String bookingId,
+    required String itemId,
+    required String otherUserId,
     required String myId,
   }) async {
     await _client
         .from('messages')
         .update({'is_read': true})
-        .eq('booking_id', bookingId)
+        .eq('item_id', itemId)
         .eq('receiver_id', myId)
+        .eq('sender_id', otherUserId)
         .eq('is_read', false);
   }
 }

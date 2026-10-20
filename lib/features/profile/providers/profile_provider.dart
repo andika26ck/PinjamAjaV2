@@ -35,12 +35,14 @@ Future<PublicProfileData> publicProfile(
     PublicProfileRef ref, String userId) async {
   final repo = ref.watch(profileRepositoryProvider);
   final profile = await repo.fetchProfile(userId);
-  final items = await repo.fetchActiveItems(userId);
+  final items = await repo.fetchPublicItems(userId);
   final reviews = await repo.fetchReceivedReviews(userId);
+  final transactionsCount = await repo.fetchCompletedTransactions(userId);
   return PublicProfileData(
     profile: profile,
-    activeItems: items,
+    items: items,
     reviews: reviews,
+    transactionsCount: transactionsCount,
   );
 }
 

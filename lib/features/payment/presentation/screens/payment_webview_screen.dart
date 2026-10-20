@@ -6,6 +6,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../../../../core/constants/app_config.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../providers/payment_provider.dart';
+import '../../data/models/payment_model.dart';
 
 class PaymentWebViewScreen extends ConsumerStatefulWidget {
   final String bookingId;

@@ -52,6 +52,24 @@ class SupabaseBookingRepository implements BookingRepository {
   }
 
   @override
+  Future<Booking?> fetchLatestBookingBetween({
+    required String itemId,
+    required String userA,
+    required String userB,
+  }) async {
+    final data = await _client
+        .from('bookings')
+        .select()
+        .eq('item_id', itemId)
+        .or('and(renter_id.eq.$userA,owner_id.eq.$userB),'
+            'and(renter_id.eq.$userB,owner_id.eq.$userA)')
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    return data == null ? null : Booking.fromJson(data);
+  }
+
+  @override
   Stream<List<Booking>> watchRenterBookings(String renterId) {
     return _client
         .from('bookings')
@@ -90,10 +108,17 @@ class SupabaseBookingRepository implements BookingRepository {
     required String id,
     required String status,
     String? cancellationReason,
+    String? refundStatus,
   }) async {
     final payload = <String, dynamic>{'status': status};
     if (cancellationReason != null) {
       payload['cancellation_reason'] = cancellationReason;
+    }
+    if (refundStatus != null) {
+      payload['refund_status'] = refundStatus;
+      if (refundStatus == AppConstants.refundStatusRefunded) {
+        payload['refunded_at'] = DateTime.now().toUtc().toIso8601String();
+      }
     }
     final data = await _client
         .from('bookings')
@@ -105,13 +130,82 @@ class SupabaseBookingRepository implements BookingRepository {
   }
 
   @override
+  Future<Booking> confirmBooking(String id) async {
+    // Panggil RPC server: penjaga eksklusif + auto-refund bentrok (atomic).
+    final data =
+        await _client.rpc('confirm_booking', params: {'p_booking_id': id});
+    final json = data is List
+        ? (data.first as Map<String, dynamic>)
+        : data as Map<String, dynamic>;
+    return Booking.fromJson(json);
+  }
+
+  @override
   Future<Booking> markPaid(String id) async {
     final data = await _client
         .from('bookings')
         .update({
           'payment_status': AppConstants.paymentStatusPaid,
           'status': AppConstants.bookingStatusPending,
+          'expires_at': null,
+          // Pemilik wajib konfirmasi sebelum tenggat; lewat itu booking
+          // otomatis dibatalkan & dana dikembalikan (lihat pg_cron).
+          'confirmation_deadline': DateTime.now()
+              .toUtc()
+              .add(const Duration(
+                  hours: AppConstants.ownerConfirmDeadlineHours))
+              .toIso8601String(),
         })
+        .eq('id', id)
+        .select()
+        .single();
+    return Booking.fromJson(data);
+  }
+
+  @override
+  Future<Booking> markStarted(String id) async {
+    final data = await _client
+        .from('bookings')
+        .update({
+          'status': AppConstants.bookingStatusActive,
+          'started_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', id)
+        .select()
+        .single();
+    return Booking.fromJson(data);
+  }
+
+  @override
+  Future<Booking> markReturned({
+    required String id,
+    required DateTime returnedAt,
+    required int lateDays,
+    required int lateFee,
+    required int depositRefund,
+    required String lateFeeStatus,
+  }) async {
+    final data = await _client
+        .from('bookings')
+        .update({
+          'status': AppConstants.bookingStatusCompleted,
+          'returned_at': returnedAt.toUtc().toIso8601String(),
+          'late_days': lateDays,
+          'late_fee': lateFee,
+          'deposit_refund': depositRefund,
+          'late_fee_status': lateFeeStatus,
+        })
+        .eq('id', id)
+        .select()
+        .single();
+    return Booking.fromJson(data);
+  }
+
+  @override
+  Future<Booking> payLateFee(String id) async {
+    final data = await _client
+        .from('bookings')
+        .update({'late_fee_status': AppConstants.lateFeeStatusPaid})
         .eq('id', id)
         .select()
         .single();

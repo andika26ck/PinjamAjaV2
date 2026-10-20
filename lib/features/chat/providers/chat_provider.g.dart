@@ -21,7 +21,7 @@ final chatRepositoryProvider = Provider<ChatRepository>.internal(
 );
 
 typedef ChatRepositoryRef = ProviderRef<ChatRepository>;
-String _$chatControllerHash() => r'5c30a2bc98c6c35118250dbf2ada81fd29686304';
+String _$chatControllerHash() => r'e177813bb1920a503393c665fd45f5f32dc4da5c';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -46,36 +46,40 @@ class _SystemHash {
 
 abstract class _$ChatController
     extends BuildlessAutoDisposeAsyncNotifier<List<Message>> {
-  late final String bookingId;
+  late final String itemId;
+  late final String otherUserId;
 
   FutureOr<List<Message>> build(
-    String bookingId,
+    String itemId,
+    String otherUserId,
   );
 }
 
-/// State pesan untuk satu booking + subscription realtime.
+/// State pesan untuk satu thread (item + lawan bicara) + subscription realtime.
 ///
 /// Copied from [ChatController].
 @ProviderFor(ChatController)
 const chatControllerProvider = ChatControllerFamily();
 
-/// State pesan untuk satu booking + subscription realtime.
+/// State pesan untuk satu thread (item + lawan bicara) + subscription realtime.
 ///
 /// Copied from [ChatController].
 class ChatControllerFamily extends Family<AsyncValue<List<Message>>> {
-  /// State pesan untuk satu booking + subscription realtime.
+  /// State pesan untuk satu thread (item + lawan bicara) + subscription realtime.
   ///
   /// Copied from [ChatController].
   const ChatControllerFamily();
 
-  /// State pesan untuk satu booking + subscription realtime.
+  /// State pesan untuk satu thread (item + lawan bicara) + subscription realtime.
   ///
   /// Copied from [ChatController].
   ChatControllerProvider call(
-    String bookingId,
+    String itemId,
+    String otherUserId,
   ) {
     return ChatControllerProvider(
-      bookingId,
+      itemId,
+      otherUserId,
     );
   }
 
@@ -84,7 +88,8 @@ class ChatControllerFamily extends Family<AsyncValue<List<Message>>> {
     covariant ChatControllerProvider provider,
   ) {
     return call(
-      provider.bookingId,
+      provider.itemId,
+      provider.otherUserId,
     );
   }
 
@@ -103,18 +108,21 @@ class ChatControllerFamily extends Family<AsyncValue<List<Message>>> {
   String? get name => r'chatControllerProvider';
 }
 
-/// State pesan untuk satu booking + subscription realtime.
+/// State pesan untuk satu thread (item + lawan bicara) + subscription realtime.
 ///
 /// Copied from [ChatController].
 class ChatControllerProvider extends AutoDisposeAsyncNotifierProviderImpl<
     ChatController, List<Message>> {
-  /// State pesan untuk satu booking + subscription realtime.
+  /// State pesan untuk satu thread (item + lawan bicara) + subscription realtime.
   ///
   /// Copied from [ChatController].
   ChatControllerProvider(
-    String bookingId,
+    String itemId,
+    String otherUserId,
   ) : this._internal(
-          () => ChatController()..bookingId = bookingId,
+          () => ChatController()
+            ..itemId = itemId
+            ..otherUserId = otherUserId,
           from: chatControllerProvider,
           name: r'chatControllerProvider',
           debugGetCreateSourceHash:
@@ -124,7 +132,8 @@ class ChatControllerProvider extends AutoDisposeAsyncNotifierProviderImpl<
           dependencies: ChatControllerFamily._dependencies,
           allTransitiveDependencies:
               ChatControllerFamily._allTransitiveDependencies,
-          bookingId: bookingId,
+          itemId: itemId,
+          otherUserId: otherUserId,
         );
 
   ChatControllerProvider._internal(
@@ -134,17 +143,20 @@ class ChatControllerProvider extends AutoDisposeAsyncNotifierProviderImpl<
     required super.allTransitiveDependencies,
     required super.debugGetCreateSourceHash,
     required super.from,
-    required this.bookingId,
+    required this.itemId,
+    required this.otherUserId,
   }) : super.internal();
 
-  final String bookingId;
+  final String itemId;
+  final String otherUserId;
 
   @override
   FutureOr<List<Message>> runNotifierBuild(
     covariant ChatController notifier,
   ) {
     return notifier.build(
-      bookingId,
+      itemId,
+      otherUserId,
     );
   }
 
@@ -153,13 +165,16 @@ class ChatControllerProvider extends AutoDisposeAsyncNotifierProviderImpl<
     return ProviderOverride(
       origin: this,
       override: ChatControllerProvider._internal(
-        () => create()..bookingId = bookingId,
+        () => create()
+          ..itemId = itemId
+          ..otherUserId = otherUserId,
         from: from,
         name: null,
         dependencies: null,
         allTransitiveDependencies: null,
         debugGetCreateSourceHash: null,
-        bookingId: bookingId,
+        itemId: itemId,
+        otherUserId: otherUserId,
       ),
     );
   }
@@ -172,21 +187,27 @@ class ChatControllerProvider extends AutoDisposeAsyncNotifierProviderImpl<
 
   @override
   bool operator ==(Object other) {
-    return other is ChatControllerProvider && other.bookingId == bookingId;
+    return other is ChatControllerProvider &&
+        other.itemId == itemId &&
+        other.otherUserId == otherUserId;
   }
 
   @override
   int get hashCode {
     var hash = _SystemHash.combine(0, runtimeType.hashCode);
-    hash = _SystemHash.combine(hash, bookingId.hashCode);
+    hash = _SystemHash.combine(hash, itemId.hashCode);
+    hash = _SystemHash.combine(hash, otherUserId.hashCode);
 
     return _SystemHash.finish(hash);
   }
 }
 
 mixin ChatControllerRef on AutoDisposeAsyncNotifierProviderRef<List<Message>> {
-  /// The parameter `bookingId` of this provider.
-  String get bookingId;
+  /// The parameter `itemId` of this provider.
+  String get itemId;
+
+  /// The parameter `otherUserId` of this provider.
+  String get otherUserId;
 }
 
 class _ChatControllerProviderElement
@@ -195,7 +216,9 @@ class _ChatControllerProviderElement
   _ChatControllerProviderElement(super.provider);
 
   @override
-  String get bookingId => (origin as ChatControllerProvider).bookingId;
+  String get itemId => (origin as ChatControllerProvider).itemId;
+  @override
+  String get otherUserId => (origin as ChatControllerProvider).otherUserId;
 }
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

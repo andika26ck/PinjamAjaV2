@@ -20,14 +20,33 @@ class ProfileStats {
 /// Data gabungan untuk layar profil publik.
 class PublicProfileData {
   final UserProfile profile;
-  final List<Item> activeItems;
+  final List<Item> items; // semua barang publik (semua status kecuali 'inactive')
   final List<ReviewWithAuthor> reviews;
+  final int transactionsCount; // transaksi selesai (sebagai pemilik/penyewa)
 
   const PublicProfileData({
     required this.profile,
-    required this.activeItems,
+    required this.items,
     required this.reviews,
+    this.transactionsCount = 0,
   });
+
+  /// Rata-rata rating dihitung dari ulasan yang diterima — lebih andal
+  /// daripada kolom profiles.rating yang bisa basi bila trigger SQL belum jalan.
+  double get computedRating => reviews.isEmpty
+      ? profile.rating
+      : reviews.map((r) => r.review.rating).reduce((a, b) => a + b) /
+          reviews.length;
+
+  int get reviewsCount => reviews.length;
+
+  /// Barang yang masih bisa disewa (status available).
+  List<Item> get availableItems =>
+      items.where((i) => i.status == 'available').toList();
+
+  /// Barang yang sedang disewa (status rented).
+  List<Item> get rentedItems =>
+      items.where((i) => i.status == 'rented').toList();
 }
 
 /// Kontrak repository untuk fitur profil.
@@ -53,6 +72,13 @@ abstract class ProfileRepository {
 
   /// Barang aktif (status available) milik user — untuk profil publik.
   Future<List<Item>> fetchActiveItems(String userId);
+
+  /// Semua barang publik milik user (semua status KECUALI 'inactive')
+  /// — untuk profil publik dengan tab Semua / Tersedia.
+  Future<List<Item>> fetchPublicItems(String userId);
+
+  /// Jumlah transaksi selesai milik user (sebagai pemilik maupun penyewa).
+  Future<int> fetchCompletedTransactions(String userId);
 
   /// Ulasan yang diterima user (di semua barang miliknya).
   Future<List<ReviewWithAuthor>> fetchReceivedReviews(String userId);

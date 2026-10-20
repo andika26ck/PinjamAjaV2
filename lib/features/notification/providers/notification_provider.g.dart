@@ -23,7 +23,7 @@ final notificationRepositoryProvider =
 );
 
 typedef NotificationRepositoryRef = ProviderRef<NotificationRepository>;
-String _$notificationListHash() => r'de2f2f2297c909ef7b187888b9509b00445cdd89';
+String _$notificationListHash() => r'e72564990bbdcdb82569d06843d31eb78df63542';
 
 /// Daftar notifikasi user (terbaru di atas) + auto-refresh realtime.
 ///

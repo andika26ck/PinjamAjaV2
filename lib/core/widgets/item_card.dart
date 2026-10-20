@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../../data/models/item.dart';
-import '../../features/wishlist/presentation/widgets/wishlist_button.dart'; // (+) wishlist
+import '../../features/wishlist/presentation/widgets/wishlist_button.dart';
 import '../constants/app_colors.dart';
 import '../utils/formatters.dart';
 
@@ -49,7 +49,7 @@ class ItemCard extends StatelessWidget {
                       left: 8,
                       child: _badge(item.condition!.label),
                     ),
-                  // (+) wishlist: tombol ♡ di pojok kanan atas thumbnail
+                  // Ikon ♡ favorit (sinkron otomatis via wishlistIdsProvider).
                   Positioned(
                     top: 4,
                     right: 4,

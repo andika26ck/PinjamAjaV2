@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/router/app_routes.dart';
 import '../../../../core/utils/app_exception.dart';
 import '../../../booking/presentation/widgets/booking_card.dart'
     show bookingStatusLabel, bookingStatusColor;
@@ -10,8 +12,13 @@ import '../../providers/chat_provider.dart';
 import '../widgets/message_bubble.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
-  final String bookingId;
-  const ChatScreen({super.key, required this.bookingId});
+  final String itemId;
+  final String otherUserId;
+  const ChatScreen({
+    super.key,
+    required this.itemId,
+    required this.otherUserId,
+  });
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -39,14 +46,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
-  Future<void> _send(String receiverId) async {
+  Future<void> _send(String receiverId, String? bookingId) async {
     final text = _inputC.text;
     if (text.trim().isEmpty) return;
     _inputC.clear();
     try {
-      await ref.read(chatControllerProvider(widget.bookingId).notifier).sendMessage(
-            bookingId: widget.bookingId,
+      await ref
+          .read(chatControllerProvider(widget.itemId, widget.otherUserId)
+              .notifier)
+          .sendMessage(
+            itemId: widget.itemId,
             receiverId: receiverId,
+            bookingId: bookingId,
             text: text,
           );
       _scrollToBottom();
@@ -61,11 +72,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final ctxAsync = ref.watch(chatContextProvider(widget.bookingId));
-    final msgsAsync = ref.watch(chatControllerProvider(widget.bookingId));
+    final ctxAsync =
+        ref.watch(chatContextProvider(widget.itemId, widget.otherUserId));
+    final msgsAsync =
+        ref.watch(chatControllerProvider(widget.itemId, widget.otherUserId));
 
     // Auto-scroll setiap ada pesan baru.
-    ref.listen(chatControllerProvider(widget.bookingId), (_, __) {
+    ref.listen(chatControllerProvider(widget.itemId, widget.otherUserId),
+        (_, __) {
       _scrollToBottom();
     });
 
@@ -102,13 +116,34 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
       body: Column(
         children: [
-          // ---- Context card: info item + status booking ----
+          // ---- Context card: info item + status booking + CTA sewa ----
           ctxAsync.maybeWhen(
-            data: (c) => _ContextCard(
-              itemTitle: c.item?.title,
-              itemThumb: c.item?.thumbnailUrl,
-              status: c.booking.status,
-            ),
+            data: (c) {
+              final isOwner = c.item?.ownerId == c.myId;
+              final hasActiveBooking = c.booking != null &&
+                  c.booking!.status != 'cancelled' &&
+                  c.booking!.status != 'completed';
+              // Tampilkan CTA hanya untuk penyewa (bukan pemilik barang)
+              // dan saat belum ada booking yang masih berjalan.
+              final canRent =
+                  !isOwner && c.item != null && !hasActiveBooking;
+              return Column(
+                children: [
+                  _ContextCard(
+                    itemTitle: c.item?.title,
+                    itemThumb: c.item?.thumbnailUrl,
+                    status: c.booking?.status,
+                  ),
+                  if (canRent)
+                    _RentCtaButton(
+                      onTap: () => context.push(
+                        AppRoutes.bookingPath(c.itemId),
+                        extra: c.item,
+                      ),
+                    ),
+                ],
+              );
+            },
             orElse: () => const SizedBox.shrink(),
           ),
           Expanded(
@@ -142,14 +177,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               },
             ),
           ),
-          _inputBar(ctxAsync.valueOrNull?.otherUserId),
+          _inputBar(
+            ctxAsync.valueOrNull?.otherUserId ?? widget.otherUserId,
+            ctxAsync.valueOrNull?.booking?.id,
+          ),
         ],
       ),
     );
   }
 
-  Widget _inputBar(String? receiverId) {
-    final canSend = receiverId != null;
+  Widget _inputBar(String receiverId, String? bookingId) {
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -165,8 +202,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 minLines: 1,
                 maxLines: 4,
                 textInputAction: TextInputAction.send,
-                onSubmitted:
-                    canSend ? (_) => _send(receiverId) : null,
+                onSubmitted: (_) => _send(receiverId, bookingId),
                 decoration: InputDecoration(
                   hintText: 'Tulis pesan...',
                   contentPadding: const EdgeInsets.symmetric(
@@ -183,11 +219,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             const SizedBox(width: 8),
             CircleAvatar(
               radius: 22,
-              backgroundColor:
-                  canSend ? AppColors.primary : AppColors.textTertiary,
+              backgroundColor: AppColors.primary,
               child: IconButton(
                 icon: const Icon(Icons.send, color: Colors.white, size: 20),
-                onPressed: canSend ? () => _send(receiverId) : null,
+                onPressed: () => _send(receiverId, bookingId),
               ),
             ),
           ],
@@ -197,15 +232,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 }
 
-class _ContextCard extends StatelessWidget {
-  final String? itemTitle;
-  final String? itemThumb;
-  final String status;
-  const _ContextCard({this.itemTitle, this.itemThumb, required this.status});
+/// Tombol ajakan menyewa di dalam ruang chat (khusus penyewa).
+class _RentCtaButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _RentCtaButton({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final color = bookingStatusColor(status);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: onTap,
+          icon: const Icon(Icons.calendar_month_outlined, size: 18),
+          label: const Text('Ajukan Sewa'),
+        ),
+      ),
+    );
+  }
+}
+
+class _ContextCard extends StatelessWidget {
+  final String? itemTitle;
+  final String? itemThumb;
+  final String? status; // null bila belum ada booking
+  const _ContextCard({this.itemTitle, this.itemThumb, this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final status = this.status;
+    final hasBooking = status != null;
+    final color =
+        hasBooking ? bookingStatusColor(status) : AppColors.textTertiary;
     return Container(
       margin: const EdgeInsets.all(12),
       padding: const EdgeInsets.all(10),
@@ -247,7 +306,7 @@ class _ContextCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              bookingStatusLabel(status),
+              hasBooking ? bookingStatusLabel(status) : 'Belum ada booking',
               style: TextStyle(
                   color: color, fontSize: 12, fontWeight: FontWeight.w600),
             ),

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/router/app_routes.dart';
 import '../../../../core/utils/app_exception.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../data/models/item.dart';
@@ -11,7 +13,6 @@ import '../../../items/presentation/screens/item_detail_screen.dart'
     show conditionColor;
 import '../../providers/booking_provider.dart';
 import '../widgets/booking_card.dart';
-import 'payment_screen.dart';
 
 const _h = TextStyle(fontSize: 18, fontWeight: FontWeight.w700);
 
@@ -58,6 +59,10 @@ class _BookingFlowState extends ConsumerState<_BookingFlow> {
       DateTime(d.year, d.month, d.day),
   };
 
+  // Tanggal yang sudah dipesan penyewa lain (diisi async dari server).
+  Set<DateTime> _occupied = const <DateTime>{};
+  bool _loadingAvailability = true;
+
   @override
   void dispose() {
     _pageController.dispose();
@@ -75,10 +80,15 @@ class _BookingFlowState extends ConsumerState<_BookingFlow> {
   bool _isBlocked(DateTime day) =>
       _blocked.contains(DateTime(day.year, day.month, day.day));
 
+  bool _isBooked(DateTime day) =>
+      _occupied.contains(DateTime(day.year, day.month, day.day));
+
+  bool _isUnavailable(DateTime day) => _isBlocked(day) || _isBooked(day);
+
   bool _rangeHasBlocked() {
     if (_start == null || _end == null) return false;
     for (var d = _start!; !d.isAfter(_end!); d = d.add(const Duration(days: 1))) {
-      if (_isBlocked(d)) return true;
+      if (_isUnavailable(d)) return true;
     }
     return false;
   }
@@ -123,9 +133,9 @@ class _BookingFlowState extends ConsumerState<_BookingFlow> {
               notes: _notesC.text,
             );
     if (!mounted || booking == null) return;
-    Navigator.of(context).pushReplacement(MaterialPageRoute(
-      builder: (_) => PaymentScreen(booking: booking, item: widget.item),
-    ));
+    // Bayar Manual: transfer/QRIS + upload bukti, diverifikasi admin.
+    // Booking sudah tersimpan sebagai 'awaiting_payment'.
+    context.pushReplacement(AppRoutes.bookingManualPaymentPath(booking.id));
   }
 
   @override
@@ -137,6 +147,12 @@ class _BookingFlowState extends ConsumerState<_BookingFlow> {
       });
     });
     final saving = ref.watch(bookingControllerProvider).isLoading;
+
+    // Ketersediaan tanggal dari booking penyewa lain.
+    final occupiedAsync =
+        ref.watch(itemOccupiedDatesProvider(widget.item.id));
+    _occupied = occupiedAsync.valueOrNull ?? const <DateTime>{};
+    _loadingAvailability = occupiedAsync.isLoading;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Sewa Barang')),
@@ -163,7 +179,8 @@ class _BookingFlowState extends ConsumerState<_BookingFlow> {
       children: [
         const Text('Pilih tanggal sewa', style: _h),
         const SizedBox(height: 4),
-        const Text('Tanggal merah tidak tersedia.',
+        const Text(
+            'Ketuk 1 tanggal untuk sewa 1 hari, atau ketuk tanggal kedua untuk rentang. Tanggal bertanda tidak bisa dipilih (lihat keterangan di bawah).',
             style: TextStyle(color: AppColors.textTertiary, fontSize: 12)),
         const SizedBox(height: 12),
         Container(
@@ -183,7 +200,7 @@ class _BookingFlowState extends ConsumerState<_BookingFlow> {
             headerStyle: const HeaderStyle(
                 formatButtonVisible: false, titleCentered: true),
             availableGestures: AvailableGestures.horizontalSwipe,
-            enabledDayPredicate: (day) => !_isBlocked(day),
+            enabledDayPredicate: (day) => !_isUnavailable(day),
             calendarStyle: const CalendarStyle(
               rangeHighlightColor: Color(0x332563EB),
               rangeStartDecoration: BoxDecoration(
@@ -194,23 +211,33 @@ class _BookingFlowState extends ConsumerState<_BookingFlow> {
                   color: AppColors.primaryLight, shape: BoxShape.circle),
             ),
             calendarBuilders: CalendarBuilders(
-              disabledBuilder: (context, day, _) =>
-                  _isBlocked(day) ? _blockedCell(day) : null,
+              disabledBuilder: (context, day, _) {
+                if (_isBooked(day)) return _bookedCell(day);
+                if (_isBlocked(day)) return _blockedCell(day);
+                return null;
+              },
             ),
             onPageChanged: (d) => _focusedDay = d,
             onRangeSelected: (start, end, focused) {
               setState(() {
-                _start = start == null
+                final s = start == null
                     ? null
                     : DateTime(start.year, start.month, start.day);
-                _end = end == null
+                final e = end == null
                     ? null
                     : DateTime(end.year, end.month, end.day);
+                _start = s;
+                // Tanggal mulai = selesai diperbolehkan (sewa 1 hari). Saat baru
+                // satu tanggal yang dipilih, anggap sewa 1 hari; otomatis
+                // diperbarui jika pengguna menekan tanggal kedua untuk rentang.
+                _end = e ?? s;
                 _focusedDay = focused;
               });
             },
           ),
         ),
+        const SizedBox(height: 12),
+        _AvailabilityLegend(loading: _loadingAvailability),
         const SizedBox(height: 16),
         if (_start != null)
           Container(
@@ -253,6 +280,21 @@ class _BookingFlowState extends ConsumerState<_BookingFlow> {
         child: Text('${day.day}',
             style: const TextStyle(
                 color: AppColors.error,
+                decoration: TextDecoration.lineThrough)),
+      );
+
+  // Tanggal yang sudah dipesan penyewa lain.
+  Widget _bookedCell(DateTime day) => Container(
+        margin: const EdgeInsets.all(4),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppColors.secondary.withOpacity(0.16),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text('${day.day}',
+            style: const TextStyle(
+                color: AppColors.secondary,
+                fontWeight: FontWeight.w600,
                 decoration: TextDecoration.lineThrough)),
       );
 
@@ -301,7 +343,7 @@ class _BookingFlowState extends ConsumerState<_BookingFlow> {
                         color: conditionColor(item.condition).withOpacity(0.12),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Text(item.condition.label,
+                      child: Text(item.condition?.label ?? '-',
                           style: TextStyle(
                               color: conditionColor(item.condition),
                               fontSize: 11,
@@ -475,6 +517,65 @@ class _BookingFlowState extends ConsumerState<_BookingFlow> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Keterangan warna penanda ketersediaan tanggal di kalender booking.
+class _AvailabilityLegend extends StatelessWidget {
+  final bool loading;
+  const _AvailabilityLegend({required this.loading});
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return Row(
+        children: const [
+          SizedBox(
+              height: 12,
+              width: 12,
+              child: CircularProgressIndicator(strokeWidth: 2)),
+          SizedBox(width: 8),
+          Text('Memuat ketersediaan tanggal…',
+              style: TextStyle(fontSize: 12, color: AppColors.textTertiary)),
+        ],
+      );
+    }
+    return Wrap(
+      spacing: 16,
+      runSpacing: 6,
+      children: const [
+        _LegendDot(color: AppColors.secondary, label: 'Sudah dibooking'),
+        _LegendDot(color: AppColors.error, label: 'Tidak tersedia'),
+      ],
+    );
+  }
+}
+
+class _LegendDot extends StatelessWidget {
+  final Color color;
+  final String label;
+  const _LegendDot({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          height: 14,
+          width: 14,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.16),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: color),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(label,
+            style: const TextStyle(
+                fontSize: 12, color: AppColors.textSecondary)),
+      ],
     );
   }
 }

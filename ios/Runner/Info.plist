@@ -24,6 +24,20 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>io.pinjamaja.deeplink</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>pinjamaja</string>
+				<string>io.pinjamaja</string>
+			</array>
+		</dict>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>
@@ -66,5 +80,13 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Aplikasi butuh lokasi untuk mengisi lokasi barang secara otomatis.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Aplikasi butuh akses galeri untuk mengunggah foto barang, bukti pembayaran, dan foto profil.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Aplikasi butuh akses kamera untuk mengambil foto barang dan bukti pembayaran.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Aplikasi butuh izin menyimpan gambar ke galeri.</string>
 </dict>
 </plist>

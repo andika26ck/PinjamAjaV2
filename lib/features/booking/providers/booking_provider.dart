@@ -14,6 +14,72 @@ import 'booking_list_provider.dart';
 
 part 'booking_provider.g.dart';
 
+/// Hasil perhitungan denda keterlambatan pengembalian.
+class LateFeeResult {
+  final int lateDays;
+  final int lateFee;
+  final int depositRefund; // sisa deposit yang dikembalikan ke penyewa
+  final int outstanding; // kekurangan denda yang masih ditagih ke penyewa
+  final String status; // none | unpaid | paid
+  const LateFeeResult({
+    required this.lateDays,
+    required this.lateFee,
+    required this.depositRefund,
+    required this.outstanding,
+    required this.status,
+  });
+}
+
+/// Hitung denda telat: toleransi sampai jam 12 siang H+1 dari tanggal selesai,
+/// lewat itu denda = (hari telat) x tarif sewa harian x lateFeeRatePerDay.
+/// Denda dipotong dari deposit dulu; kekurangannya jadi tagihan penyewa.
+LateFeeResult computeLateFee({
+  required DateTime? endDate,
+  required int pricePerDay,
+  required int depositAmount,
+  required DateTime returnedAt,
+}) {
+  if (endDate == null) {
+    return LateFeeResult(
+      lateDays: 0,
+      lateFee: 0,
+      depositRefund: depositAmount,
+      outstanding: 0,
+      status: AppConstants.lateFeeStatusNone,
+    );
+  }
+  final base = DateTime(endDate.year, endDate.month, endDate.day);
+  final deadline = base
+      .add(const Duration(days: 1))
+      .add(const Duration(hours: AppConstants.lateGraceUntilHour));
+
+  var lateDays = 0;
+  if (returnedAt.isAfter(deadline)) {
+    final diff = returnedAt.difference(deadline);
+    lateDays = (diff.inSeconds / 86400).ceil();
+    if (lateDays < 1) lateDays = 1;
+  }
+
+  final lateFee =
+      (lateDays * pricePerDay * AppConstants.lateFeeRatePerDay).round();
+  final covered = lateFee < depositAmount ? lateFee : depositAmount;
+  final depositRefund = depositAmount - covered;
+  final outstanding = lateFee - covered;
+  final status = lateFee == 0
+      ? AppConstants.lateFeeStatusNone
+      : (outstanding > 0
+          ? AppConstants.lateFeeStatusUnpaid
+          : AppConstants.lateFeeStatusPaid);
+
+  return LateFeeResult(
+    lateDays: lateDays,
+    lateFee: lateFee,
+    depositRefund: depositRefund,
+    outstanding: outstanding,
+    status: status,
+  );
+}
+
 @Riverpod(keepAlive: true)
 BookingRepository bookingRepository(BookingRepositoryRef ref) =>
     SupabaseBookingRepository(ref.watch(supabaseClientProvider));
@@ -22,6 +88,41 @@ BookingRepository bookingRepository(BookingRepositoryRef ref) =>
 @riverpod
 Future<Item> bookingItem(BookingItemRef ref, String itemId) =>
     ref.watch(bookingRepositoryProvider).fetchItem(itemId);
+
+/// Kumpulan tanggal yang sudah terisi booking penyewa lain untuk satu item.
+/// Dipakai kalender booking agar tanggal terpakai langsung dinonaktifkan,
+/// jadi penyewa tak perlu menebak-nebak tanggal yang masih kosong.
+@riverpod
+Future<Set<DateTime>> itemOccupiedDates(
+    ItemOccupiedDatesRef ref, String itemId) async {
+  final repo = ref.watch(bookingRepositoryProvider);
+  final bookings = await repo.fetchItemBookings(itemId);
+  const occupied = {
+    AppConstants.bookingStatusAwaitingPayment,
+    AppConstants.bookingStatusPending,
+    AppConstants.bookingStatusConfirmed,
+    AppConstants.bookingStatusActive,
+  };
+  final now = DateTime.now();
+  final result = <DateTime>{};
+  for (final b in bookings) {
+    if (!occupied.contains(b.status)) continue;
+    // 'awaiting_payment' yang sudah lewat tenggat tidak lagi mengunci tanggal.
+    if (b.status == AppConstants.bookingStatusAwaitingPayment &&
+        b.expiresAt != null &&
+        b.expiresAt!.isBefore(now)) {
+      continue;
+    }
+    final s = b.startDate, e = b.endDate;
+    if (s == null || e == null) continue;
+    final start = DateTime(s.year, s.month, s.day);
+    final end = DateTime(e.year, e.month, e.day);
+    for (var d = start; !d.isAfter(end); d = d.add(const Duration(days: 1))) {
+      result.add(d);
+    }
+  }
+  return result;
+}
 
 /// Aksi tulis booking. State `AsyncValue<void>` untuk loading & error.
 @riverpod
@@ -54,6 +155,12 @@ class BookingController extends _$BookingController {
       final repo = ref.read(bookingRepositoryProvider);
       final renterId = _uid();
 
+      // 0) Pemilik tidak boleh menyewa barangnya sendiri.
+      if (renterId == item.ownerId) {
+        throw const AppException(
+            'Kamu tidak bisa menyewa barang milikmu sendiri.');
+      }
+
       final s = DateTime(start.year, start.month, start.day);
       final e = DateTime(end.year, end.month, end.day);
 
@@ -70,6 +177,7 @@ class BookingController extends _$BookingController {
 
       // 2) Tidak boleh tumpang tindih dengan booking lain yang masih berjalan.
       const occupied = {
+        AppConstants.bookingStatusAwaitingPayment,
         AppConstants.bookingStatusPending,
         AppConstants.bookingStatusConfirmed,
         AppConstants.bookingStatusActive,
@@ -77,6 +185,12 @@ class BookingController extends _$BookingController {
       final existing = await repo.fetchItemBookings(item.id);
       for (final b in existing) {
         if (!occupied.contains(b.status)) continue;
+        // Booking 'awaiting_payment' yang sudah lewat deadline tidak mengunci tanggal.
+        if (b.status == AppConstants.bookingStatusAwaitingPayment &&
+            b.expiresAt != null &&
+            b.expiresAt!.isBefore(DateTime.now())) {
+          continue;
+        }
         final bs = b.startDate, be = b.endDate;
         if (bs == null || be == null) continue;
         final overlap = !s.isAfter(be) && !e.isBefore(bs);
@@ -97,13 +211,16 @@ class BookingController extends _$BookingController {
         'owner_id': item.ownerId,
         'start_date': _fmtDate(s),
         'end_date': _fmtDate(e),
-        'total_day': days,
         'price_per_day': item.pricePerDay,
         'deposit_amount': item.depositAmount,
         'platform_fee': fee,
         'total_price': total,
-        'status': AppConstants.bookingStatusPending,
+        'status': AppConstants.bookingStatusAwaitingPayment,
         'payment_status': AppConstants.paymentStatusUnpaid,
+        'expires_at': DateTime.now()
+            .toUtc()
+            .add(const Duration(hours: 24))
+            .toIso8601String(),
         if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
       });
 
@@ -121,41 +238,64 @@ class BookingController extends _$BookingController {
       _run(() => ref.read(bookingRepositoryProvider).markPaid(bookingId));
 
   /// Renter membatalkan booking.
-  Future<bool> cancelBooking(String id, {String? reason}) =>
+  Future<bool> cancelBooking(String id,
+          {String? reason, bool refund = false}) =>
       _runBool(() => ref.read(bookingRepositoryProvider).updateStatus(
             id: id,
             status: AppConstants.bookingStatusCancelled,
             cancellationReason: reason,
+            refundStatus: refund ? AppConstants.refundStatusRefunded : null,
           ));
 
-  /// Owner menerima permintaan -> confirmed.
-  Future<bool> confirmBooking(String id) => _runBool(() => ref
-      .read(bookingRepositoryProvider)
-      .updateStatus(id: id, status: AppConstants.bookingStatusConfirmed));
+  /// Owner menerima permintaan -> confirmed (eksklusif via RPC server).
+  /// Bila ada booking lain yang bentrok & masih menunggu, otomatis
+  /// dibatalkan + dana dikembalikan.
+  Future<bool> confirmBooking(String id) =>
+      _runBool(() => ref.read(bookingRepositoryProvider).confirmBooking(id));
 
   /// Owner menolak -> cancelled + alasan.
-  Future<bool> rejectBooking(String id, {required String reason}) =>
+  Future<bool> rejectBooking(String id,
+          {required String reason, bool refund = false}) =>
       _runBool(() => ref.read(bookingRepositoryProvider).updateStatus(
             id: id,
             status: AppConstants.bookingStatusCancelled,
             cancellationReason: reason,
+            refundStatus: refund ? AppConstants.refundStatusRefunded : null,
           ));
 
-  /// Owner memulai sewa -> active.
-  Future<bool> startRental(String id) => _runBool(() => ref
-      .read(bookingRepositoryProvider)
-      .updateStatus(id: id, status: AppConstants.bookingStatusActive));
+  /// Owner memulai sewa -> active + catat started_at (tanggal & jam).
+  Future<bool> startRental(String id) =>
+      _runBool(() => ref.read(bookingRepositoryProvider).markStarted(id));
 
   /// Owner menandai barang dikembalikan -> completed.
-  Future<bool> markReturned(String id) => _runBool(() => ref
-      .read(bookingRepositoryProvider)
-      .updateStatus(id: id, status: AppConstants.bookingStatusCompleted));
+  /// Sekaligus hitung denda keterlambatan & potong dari deposit.
+  Future<bool> markReturned(Booking booking) => _runBool(() {
+        final now = DateTime.now();
+        final f = computeLateFee(
+          endDate: booking.endDate,
+          pricePerDay: booking.pricePerDay,
+          depositAmount: booking.depositAmount,
+          returnedAt: now,
+        );
+        return ref.read(bookingRepositoryProvider).markReturned(
+              id: booking.id,
+              returnedAt: now,
+              lateDays: f.lateDays,
+              lateFee: f.lateFee,
+              depositRefund: f.depositRefund,
+              lateFeeStatus: f.status,
+            );
+      });
+
+  /// Penyewa membayar kekurangan denda (simulasi) -> late_fee_status: paid.
+  Future<bool> payLateFee(String id) =>
+      _runBool(() => ref.read(bookingRepositoryProvider).payLateFee(id));
 
   /// Kirim ulasan untuk booking yang sudah selesai.
   Future<bool> submitReview({
     required String bookingId,
     required String itemId,
-    required double rating,
+    required int rating,
     String? comment,
   }) async {
     state = const AsyncLoading();

@@ -38,6 +38,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     _focus.unfocus();
   }
 
+  /// Tap kategori populer -> filter pakai category_id (bukan pencarian teks),
+  /// jadi hasilnya akurat sesuai kategori, bukan cocok-cocokan judul barang.
+  void _pickCategory(String id, String name) {
+    final notifier = ref.read(searchControllerProvider.notifier);
+    // Kosongkan teks pencarian biar nggak bentrok sama filter kategori.
+    _controller.clear();
+    notifier.setQuery('');
+    notifier.applyFilters(
+      ref.read(searchControllerProvider).filters.copyWith(categoryIds: [id]),
+    );
+    _focus.unfocus();
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(searchControllerProvider);
@@ -103,7 +116,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _buildBody(BuildContext context, SearchUiState state) {
     if (!state.hasSearched) {
-      return _SuggestionsView(onPick: _pickQuery);
+      return _SuggestionsView(
+        onPick: _pickQuery,
+        onPickCategory: _pickCategory,
+      );
     }
     return state.results.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -143,7 +159,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
 class _SuggestionsView extends ConsumerWidget {
   final void Function(String) onPick;
-  const _SuggestionsView({required this.onPick});
+  final void Function(String id, String name) onPickCategory;
+  const _SuggestionsView({required this.onPick, required this.onPickCategory});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -199,7 +216,7 @@ class _SuggestionsView extends ConsumerWidget {
             children: list
                 .map((c) => ActionChip(
                       label: Text(c.name),
-                      onPressed: () => onPick(c.name),
+                      onPressed: () => onPickCategory(c.id, c.name),
                     ))
                 .toList(),
           ),

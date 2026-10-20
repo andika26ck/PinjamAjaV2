@@ -31,12 +31,46 @@ dependencies:
   table_calendar: ^3.1.1
   dotted_border: ^2.1.0
 
+  # Media & device (Fase 3/7)
+  image_picker: ^1.0.7
+  geolocator: ^11.0.0
+  flutter_image_compress: ^2.3.0
+
+  # Local storage (Fase 2)
+  shared_preferences: ^2.2.2
+
+  # Waktu relatif chat/notif (Fase 5)
+  timeago: ^3.6.1
+
+  # Payment / Midtrans (Fase 9)
+  webview_flutter: ^4.7.0
+  lottie: ^3.1.2
+
+  # Deep links (Fase 8) & berbagi profil (Fase 7.1)
+  app_links: ^6.3.0
+  share_plus: ^7.2.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.1
   build_runner: ^2.4.9
   riverpod_generator: ^2.4.0
+  flutter_launcher_icons: ^0.14.1
+
+# Ikon aplikasi -> generate dengan: dart run flutter_launcher_icons
+# Taruh ikon PNG kotak 1024x1024 di: assets/images/app_icon.png
+flutter_launcher_icons:
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  image_path: "assets/images/app_icon.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/app_icon.png"
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/lottie/
+    - assets/images/      # <--- Tambahkan persis baris ini

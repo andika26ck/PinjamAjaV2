@@ -14,6 +14,7 @@ String formatShortDate(DateTime? d) =>
     d == null ? '-' : '${d.day} ${_months[d.month - 1]} ${d.year}';
 
 String bookingStatusLabel(String status) => switch (status) {
+      'awaiting_payment' => 'Belum Bayar',
       'pending' => 'Menunggu',
       'confirmed' => 'Dikonfirmasi',
       'active' => 'Aktif',
@@ -23,6 +24,7 @@ String bookingStatusLabel(String status) => switch (status) {
     };
 
 Color bookingStatusColor(String status) => switch (status) {
+      'awaiting_payment' => AppColors.warning,
       'pending' => AppColors.statusPending,
       'confirmed' => AppColors.statusActive,
       'active' => AppColors.primary,

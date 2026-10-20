@@ -199,7 +199,7 @@ class _ProfileStatsProviderElement
   String get userId => (origin as ProfileStatsProvider).userId;
 }
 
-String _$publicProfileHash() => r'76d12df98c65a10d1f7e3ab1c26c0b5eba44efcd';
+String _$publicProfileHash() => r'426d65116fe9f35fd2871e5eeb75e198fc665c9d';
 
 /// Data profil publik (profil + barang aktif + ulasan diterima).
 ///

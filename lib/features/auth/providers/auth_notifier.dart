@@ -82,6 +82,54 @@ class AuthController extends _$AuthController {
     }
   }
 
+  /// Ganti kata sandi: verifikasi sandi lama dulu, lalu set sandi baru.
+  Future<bool> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    state = const AsyncLoading();
+    try {
+      final repo = ref.read(authRepositoryProvider);
+      try {
+        await repo.verifyCurrentPassword(currentPassword);
+      } catch (_) {
+        throw const AppException('Kata sandi saat ini salah.');
+      }
+      await repo.updatePassword(newPassword);
+      state = const AsyncData(null);
+      return true;
+    } catch (e, st) {
+      state = AsyncError(e.toAppException(), st);
+      return false;
+    }
+  }
+
+  /// Set sandi baru langsung (alur recovery "Lupa Password").
+  Future<bool> setNewPassword(String newPassword) async {
+    state = const AsyncLoading();
+    try {
+      await ref.read(authRepositoryProvider).updatePassword(newPassword);
+      state = const AsyncData(null);
+      return true;
+    } catch (e, st) {
+      state = AsyncError(e.toAppException(), st);
+      return false;
+    }
+  }
+
+  /// Kirim ulang email verifikasi ke [email].
+  Future<bool> resendEmailVerification(String email) async {
+    state = const AsyncLoading();
+    try {
+      await ref.read(authRepositoryProvider).resendEmailVerification(email);
+      state = const AsyncData(null);
+      return true;
+    } catch (e, st) {
+      state = AsyncError(e.toAppException(), st);
+      return false;
+    }
+  }
+
   /// Update role lalu refresh profil; return true bila sukses.
   Future<bool> updateRole(UserRole role) async {
     state = const AsyncLoading();

@@ -101,6 +101,38 @@ class AddEditItemController extends _$AddEditItemController {
     }
   }
 
+  /// Ubah status barang (mis. nonaktifkan/aktifkan) tanpa menghapus data.
+  /// Dipakai sebagai "soft delete" agar booking & harga lama tetap utuh.
+  Future<bool> setItemStatus(String itemId, String status) async {
+    state = const AsyncLoading();
+    try {
+      await ref
+          .read(itemRepositoryProvider)
+          .updateItem(id: itemId, payload: {'status': status});
+      _invalidateLists(itemId);
+      state = const AsyncData(null);
+      return true;
+    } catch (e, st) {
+      state = AsyncError(e.toAppException(), st);
+      return false;
+    }
+  }
+
+  /// True bila barang masih punya booking yang berjalan (belum selesai).
+  /// Dipakai untuk mencegah hard-delete yang bisa merusak riwayat sewa.
+  Future<bool> itemHasActiveBookings(String itemId) async {
+    final bookings =
+        await ref.read(itemRepositoryProvider).fetchItemBookings(itemId);
+    const blocking = {
+      'pending',
+      'awaiting_payment',
+      'confirmed',
+      'active',
+      'ongoing',
+    };
+    return bookings.any((b) => blocking.contains(b.status));
+  }
+
   // Segarkan daftar terkait agar UI ikut ter-update.
   void _invalidateLists(String? itemId) {
     ref.invalidate(ownerItemsProvider);

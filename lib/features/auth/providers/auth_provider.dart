@@ -67,12 +67,13 @@ class AppAuth extends _$AppAuth {
 
   Future<void> _loadProfile(String userId) async {
     try {
-      final profile = await ref.read(authRepositoryProvider).fetchProfile(userId);
+      final profile =
+          await ref.read(authRepositoryProvider).fetchProfile(userId);
       state = AppAuthState(status: AuthStatus.authenticated, profile: profile);
     } catch (_) {
       // Tetap authenticated walau profil gagal dimuat; role dianggap belum ada.
-      state = const AppAuthState(
-          status: AuthStatus.authenticated, profile: null);
+      state =
+          const AppAuthState(status: AuthStatus.authenticated, profile: null);
     }
   }
 

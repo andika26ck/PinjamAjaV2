@@ -13,6 +13,7 @@ class MyBookingsScreen extends ConsumerWidget {
   const MyBookingsScreen({super.key});
 
   static const _tabs = <(String, Set<String>)>[
+    ('Belum Bayar', {'awaiting_payment'}),
     ('Menunggu', {'pending', 'confirmed'}),
     ('Aktif', {'active'}),
     ('Selesai', {'completed'}),
@@ -27,6 +28,13 @@ class MyBookingsScreen extends ConsumerWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Booking Saya'),
+          actions: [
+            IconButton(
+              tooltip: 'Beranda',
+              icon: const Icon(Icons.home_outlined),
+              onPressed: () => context.go(AppRoutes.home),
+            ),
+          ],
           bottom: TabBar(
             isScrollable: true,
             tabs: [for (final t in _tabs) Tab(text: t.$1)],

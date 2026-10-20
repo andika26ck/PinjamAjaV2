@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/utils/app_exception.dart';
 import '../../../../core/utils/formatters.dart';
@@ -119,49 +120,120 @@ class _OwnerItemList extends ConsumerWidget {
             ),
             confirmDismiss: (direction) async {
               if (direction == DismissDirection.startToEnd) {
-                // Swipe kanan -> Edit
-                await Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => AddEditItemScreen(item: item),
-                ));
+                await _openEdit(context, item);
                 return false;
               }
-              // Swipe kiri -> Hapus (konfirmasi)
-              final ok = await showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text('Hapus Barang'),
-                  content: Text('Hapus "${item.title}"? Tindakan ini '
-                      'tidak bisa dibatalkan.'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('Batal'),
-                    ),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.error),
-                      onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text('Hapus'),
-                    ),
-                  ],
-                ),
-              );
-              if (ok != true) return false;
-              final success = await ref
-                  .read(addEditItemControllerProvider.notifier)
-                  .deleteItem(item.id);
-              if (success && context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Barang dihapus.')),
-                );
-              }
-              return success;
+              return _confirmAndDelete(context, ref, item);
             },
-            child: _OwnerItemCard(item: item, stat: stat),
+            child: _OwnerItemCard(
+              item: item,
+              stat: stat,
+              onEdit: () => _openEdit(context, item),
+              onDelete: () => _confirmAndDelete(context, ref, item),
+              onToggleActive: () => _toggleActive(context, ref, item),
+            ),
           );
         },
       ),
     );
+  }
+
+  Future<void> _openEdit(BuildContext context, Item item) async {
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => AddEditItemScreen(item: item),
+    ));
+  }
+
+  Future<bool> _confirmAndDelete(
+      BuildContext context, WidgetRef ref, Item item) async {
+    final controller = ref.read(addEditItemControllerProvider.notifier);
+
+    // Lindungi riwayat & harga booking lama: jika masih ada booking berjalan,
+    // jangan hapus permanen. Tawarkan nonaktifkan saja.
+    final hasActive = await controller.itemHasActiveBookings(item.id);
+    if (!context.mounted) return false;
+
+    if (hasActive) {
+      final nonaktif = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Tidak bisa dihapus'),
+          content: Text(
+              'Barang "${item.title}" masih punya booking berjalan. Demi '
+              'menjaga riwayat & harga sewa penyewa, barang tidak bisa '
+              'dihapus permanen.\n\nNonaktifkan saja? Barang tak akan muncul '
+              'untuk penyewa baru, tapi booking lama tetap aman.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Nonaktifkan'),
+            ),
+          ],
+        ),
+      );
+      if (nonaktif != true) return false;
+      final ok = await controller.setItemStatus(
+          item.id, AppConstants.itemStatusInactive);
+      if (ok && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Barang dinonaktifkan.')),
+        );
+      }
+      return false; // jangan dismiss; item pindah ke tab "Nonaktif"
+    }
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hapus Barang'),
+        content: Text('Hapus "${item.title}"? Tindakan ini tidak bisa '
+            'dibatalkan.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            style:
+                ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return false;
+    final success = await controller.deleteItem(item.id);
+    if (success && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Barang dihapus.')),
+      );
+    }
+    return success;
+  }
+
+  Future<void> _toggleActive(
+      BuildContext context, WidgetRef ref, Item item) async {
+    final controller = ref.read(addEditItemControllerProvider.notifier);
+    final activate = item.status == AppConstants.itemStatusInactive;
+    final ok = await controller.setItemStatus(
+      item.id,
+      activate
+          ? AppConstants.itemStatusAvailable
+          : AppConstants.itemStatusInactive,
+    );
+    if (ok && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              activate ? 'Barang diaktifkan.' : 'Barang dinonaktifkan.'),
+        ),
+      );
+    }
   }
 
   Widget _swipeBg({
@@ -194,7 +266,16 @@ class _OwnerItemList extends ConsumerWidget {
 class _OwnerItemCard extends StatelessWidget {
   final Item item;
   final ItemMiniStat stat;
-  const _OwnerItemCard({required this.item, required this.stat});
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final VoidCallback onToggleActive;
+  const _OwnerItemCard({
+    required this.item,
+    required this.stat,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onToggleActive,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -256,8 +337,50 @@ class _OwnerItemCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right,
-                    color: AppColors.textTertiary),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert,
+                      color: AppColors.textTertiary),
+                  tooltip: 'Aksi',
+                  onSelected: (v) {
+                    if (v == 'edit') onEdit();
+                    if (v == 'toggle') onToggleActive();
+                    if (v == 'delete') onDelete();
+                  },
+                  itemBuilder: (_) {
+                    final inactive =
+                        item.status == AppConstants.itemStatusInactive;
+                    return [
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: ListTile(
+                          leading: Icon(Icons.edit_outlined),
+                          title: Text('Edit'),
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'toggle',
+                        child: ListTile(
+                          leading: Icon(inactive
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined),
+                          title: Text(inactive ? 'Aktifkan' : 'Nonaktifkan'),
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: ListTile(
+                          leading: Icon(Icons.delete_outline,
+                              color: AppColors.error),
+                          title: Text('Hapus',
+                              style: TextStyle(color: AppColors.error)),
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                    ];
+                  },
+                ),
               ],
             ),
             const Divider(height: 20),

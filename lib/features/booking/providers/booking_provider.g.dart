@@ -182,7 +182,161 @@ class _BookingItemProviderElement extends AutoDisposeFutureProviderElement<Item>
   String get itemId => (origin as BookingItemProvider).itemId;
 }
 
-String _$bookingControllerHash() => r'4ecffbe7f2232c371b52923c5320793e610dc20c';
+String _$itemOccupiedDatesHash() => r'18f8f0e31b70d1f1f0f329b3b988883c449da288';
+
+/// Kumpulan tanggal yang sudah terisi booking penyewa lain untuk satu item.
+/// Dipakai kalender booking agar tanggal terpakai langsung dinonaktifkan,
+/// jadi penyewa tak perlu menebak-nebak tanggal yang masih kosong.
+///
+/// Copied from [itemOccupiedDates].
+@ProviderFor(itemOccupiedDates)
+const itemOccupiedDatesProvider = ItemOccupiedDatesFamily();
+
+/// Kumpulan tanggal yang sudah terisi booking penyewa lain untuk satu item.
+/// Dipakai kalender booking agar tanggal terpakai langsung dinonaktifkan,
+/// jadi penyewa tak perlu menebak-nebak tanggal yang masih kosong.
+///
+/// Copied from [itemOccupiedDates].
+class ItemOccupiedDatesFamily extends Family<AsyncValue<Set<DateTime>>> {
+  /// Kumpulan tanggal yang sudah terisi booking penyewa lain untuk satu item.
+  /// Dipakai kalender booking agar tanggal terpakai langsung dinonaktifkan,
+  /// jadi penyewa tak perlu menebak-nebak tanggal yang masih kosong.
+  ///
+  /// Copied from [itemOccupiedDates].
+  const ItemOccupiedDatesFamily();
+
+  /// Kumpulan tanggal yang sudah terisi booking penyewa lain untuk satu item.
+  /// Dipakai kalender booking agar tanggal terpakai langsung dinonaktifkan,
+  /// jadi penyewa tak perlu menebak-nebak tanggal yang masih kosong.
+  ///
+  /// Copied from [itemOccupiedDates].
+  ItemOccupiedDatesProvider call(
+    String itemId,
+  ) {
+    return ItemOccupiedDatesProvider(
+      itemId,
+    );
+  }
+
+  @override
+  ItemOccupiedDatesProvider getProviderOverride(
+    covariant ItemOccupiedDatesProvider provider,
+  ) {
+    return call(
+      provider.itemId,
+    );
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'itemOccupiedDatesProvider';
+}
+
+/// Kumpulan tanggal yang sudah terisi booking penyewa lain untuk satu item.
+/// Dipakai kalender booking agar tanggal terpakai langsung dinonaktifkan,
+/// jadi penyewa tak perlu menebak-nebak tanggal yang masih kosong.
+///
+/// Copied from [itemOccupiedDates].
+class ItemOccupiedDatesProvider
+    extends AutoDisposeFutureProvider<Set<DateTime>> {
+  /// Kumpulan tanggal yang sudah terisi booking penyewa lain untuk satu item.
+  /// Dipakai kalender booking agar tanggal terpakai langsung dinonaktifkan,
+  /// jadi penyewa tak perlu menebak-nebak tanggal yang masih kosong.
+  ///
+  /// Copied from [itemOccupiedDates].
+  ItemOccupiedDatesProvider(
+    String itemId,
+  ) : this._internal(
+          (ref) => itemOccupiedDates(
+            ref as ItemOccupiedDatesRef,
+            itemId,
+          ),
+          from: itemOccupiedDatesProvider,
+          name: r'itemOccupiedDatesProvider',
+          debugGetCreateSourceHash:
+              const bool.fromEnvironment('dart.vm.product')
+                  ? null
+                  : _$itemOccupiedDatesHash,
+          dependencies: ItemOccupiedDatesFamily._dependencies,
+          allTransitiveDependencies:
+              ItemOccupiedDatesFamily._allTransitiveDependencies,
+          itemId: itemId,
+        );
+
+  ItemOccupiedDatesProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.itemId,
+  }) : super.internal();
+
+  final String itemId;
+
+  @override
+  Override overrideWith(
+    FutureOr<Set<DateTime>> Function(ItemOccupiedDatesRef provider) create,
+  ) {
+    return ProviderOverride(
+      origin: this,
+      override: ItemOccupiedDatesProvider._internal(
+        (ref) => create(ref as ItemOccupiedDatesRef),
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        itemId: itemId,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeFutureProviderElement<Set<DateTime>> createElement() {
+    return _ItemOccupiedDatesProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ItemOccupiedDatesProvider && other.itemId == itemId;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, itemId.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+mixin ItemOccupiedDatesRef on AutoDisposeFutureProviderRef<Set<DateTime>> {
+  /// The parameter `itemId` of this provider.
+  String get itemId;
+}
+
+class _ItemOccupiedDatesProviderElement
+    extends AutoDisposeFutureProviderElement<Set<DateTime>>
+    with ItemOccupiedDatesRef {
+  _ItemOccupiedDatesProviderElement(super.provider);
+
+  @override
+  String get itemId => (origin as ItemOccupiedDatesProvider).itemId;
+}
+
+String _$bookingControllerHash() => r'ffab00ff21444ecade76a9128b7bff8e30e8d7c9';
 
 /// Aksi tulis booking. State `AsyncValue<void>` untuk loading & error.
 ///

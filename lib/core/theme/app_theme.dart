@@ -89,7 +89,7 @@ class AppTheme {
       ),
       // CATATAN: di Flutter 3.19 pakai `CardTheme`. Jika kamu upgrade ke
       // Flutter >= 3.22, ganti `CardTheme(` menjadi `CardThemeData(`.
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: AppColors.surface,
         elevation: 0,
         margin: EdgeInsets.zero,

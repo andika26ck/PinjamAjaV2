@@ -1,25 +1,48 @@
-// CATATAN: file default `flutter create` di sini awalnya widget test yang
-// pump `MyApp` — class itu sudah diganti jadi `PinjamAjaApp` (lihat
-// lib/app.dart). Belum diganti jadi widget test penuh untuk PinjamAjaApp
-// karena app butuh Supabase.initialize() jalan dulu (dipanggil di main(),
-// bukan di app.dart) — testing itu butuh mock Supabase client yang belum
-// dibuat di Prompt #1 ini. Untuk sekarang, smoke-test logic murni dulu.
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pinjam_aja/core/utils/price_helper.dart';
+import 'package:pinjam_aja/core/utils/formatters.dart';
 
 void main() {
-  test('PriceHelper.calculatePlatformFee menghitung 5% dengan benar', () {
-    final fee = PriceHelper.calculatePlatformFee(3, 100000);
-    expect(fee, 15000);
+  group('Formatters.rupiah', () {
+    test('format ribuan pakai pemisah titik', () {
+      expect(Formatters.rupiah(999), 'Rp999');
+      expect(Formatters.rupiah(1000), 'Rp1.000');
+      expect(Formatters.rupiah(150000), 'Rp150.000');
+    });
+
+    test('format angka besar', () {
+      expect(Formatters.rupiah(1250000), 'Rp1.250.000');
+      expect(Formatters.rupiah(10000000), 'Rp10.000.000');
+    });
+
+    test('nilai nol', () {
+      expect(Formatters.rupiah(0), 'Rp0');
+    });
+
+    test('nilai desimal dibulatkan', () {
+      expect(Formatters.rupiah(150000.4), 'Rp150.000');
+      expect(Formatters.rupiah(150000.6), 'Rp150.001');
+    });
+
+    test('nilai negatif diberi tanda minus', () {
+      expect(Formatters.rupiah(-5000), '-Rp5.000');
+    });
   });
 
-  test('PriceHelper.calculateTotalPrice menjumlahkan sewa + deposit + fee', () {
-    final total = PriceHelper.calculateTotalPrice(
-      totalDays: 3,
-      pricePerDay: 100000,
-      depositAmount: 50000,
-    );
-    // (3 * 100000) + 50000 + (3 * 100000 * 0.05) = 300000 + 50000 + 15000
-    expect(total, 365000);
+  group('Formatters.rupiahPerDay', () {
+    test('menambah sufiks /hari', () {
+      expect(Formatters.rupiahPerDay(75000), 'Rp75.000/hari');
+    });
+  });
+
+  group('Formatters.dateTime', () {
+    test('memformat tanggal & jam lokal', () {
+      final d = DateTime(2026, 6, 28, 14, 5);
+      expect(Formatters.dateTime(d), '28 Jun 2026, 14:05');
+    });
+
+    test('jam & menit dipadkan dua digit', () {
+      final d = DateTime(2026, 1, 9, 3, 7);
+      expect(Formatters.dateTime(d), '9 Jan 2026, 03:07');
+    });
   });
 }

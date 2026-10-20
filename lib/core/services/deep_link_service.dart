@@ -29,6 +29,7 @@ class DeepLinkService {
   }
 
   /// pinjamaja://item/{id} | pinjamaja://booking/{id} | pinjamaja://chat/{bookingId}
+  /// | pinjamaja://user/{userId}
   static String? mapUriToLocation(Uri uri) {
     final host = uri.host;
     final seg = uri.pathSegments;
@@ -40,7 +41,9 @@ class DeepLinkService {
       case 'booking':
         return AppRoutes.bookingDetailPath(id);
       case 'chat':
-        return AppRoutes.chatRoomPath(id);
+        return AppRoutes.chatRoomByBookingPath(id);
+      case 'user':
+        return AppRoutes.publicProfilePath(id);
     }
     return null;
   }

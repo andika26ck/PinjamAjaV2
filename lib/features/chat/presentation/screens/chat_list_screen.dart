@@ -52,8 +52,8 @@ class ChatListScreen extends ConsumerWidget {
                 final c = items[i];
                 return ConversationTile(
                   conversation: c,
-                  onTap: () =>
-                      context.push(AppRoutes.chatRoomPath(c.bookingId)),
+                  onTap: () => context.push(
+                      AppRoutes.chatRoomPath(c.itemId, c.otherUserId)),
                 );
               },
             );

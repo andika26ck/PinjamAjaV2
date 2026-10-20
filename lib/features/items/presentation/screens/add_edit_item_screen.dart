@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -162,19 +163,94 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
         return;
       }
       final pos = await Geolocator.getCurrentPosition();
+
+      // Ubah koordinat -> alamat yang mudah dibaca (reverse geocoding via HTTP).
+      String address = '';
+      try {
+        address = await _reverseGeocode(pos.latitude, pos.longitude);
+      } catch (_) {
+        // Bisa gagal (mis. tanpa internet) -> fallback ke koordinat.
+      }
+
       setState(() {
         _lat = pos.latitude;
         _lng = pos.longitude;
-        if (_locationC.text.trim().isEmpty) {
-          _locationC.text =
-              'Lokasi saya (${pos.latitude.toStringAsFixed(4)}, '
-              '${pos.longitude.toStringAsFixed(4)})';
-        }
+        // Selalu isi/timpa dengan alamat hasil deteksi (atau koordinat bila gagal).
+        _locationC.text = address.isNotEmpty
+            ? address
+            : 'Lokasi saya (${pos.latitude.toStringAsFixed(4)}, '
+                '${pos.longitude.toStringAsFixed(4)})';
       });
-      _snack('Lokasi berhasil diambil.');
-    } catch (_) {
-      _snack('Gagal mengambil lokasi.', error: true);
+      _snack(address.isNotEmpty
+          ? 'Lokasi terdeteksi: $address'
+          : 'Lokasi berhasil diambil.');
+    } on LocationServiceDisabledException {
+      _snack('Layanan lokasi (GPS) belum aktif. Nyalakan dulu, ya.',
+          error: true);
+    } on PermissionDeniedException {
+      _snack('Izin lokasi ditolak. Aktifkan lewat Pengaturan aplikasi.',
+          error: true);
+    } catch (e) {
+      // Tampilkan pesan asli agar mudah didiagnosa
+      // (mis. izin lokasi belum dideklarasikan di AndroidManifest.xml).
+      _snack('Gagal mengambil lokasi: $e', error: true);
     }
+  }
+
+  /// Reverse geocoding via API gratis OpenStreetMap Nominatim (tanpa package
+  /// native, cukup pakai `dio`). Mengembalikan alamat ringkas yang rapi.
+  Future<String> _reverseGeocode(double lat, double lng) async {
+    final dio = Dio();
+    final res = await dio.get<Map<String, dynamic>>(
+      'https://nominatim.openstreetmap.org/reverse',
+      queryParameters: {
+        'lat': lat,
+        'lon': lng,
+        'format': 'jsonv2',
+        'accept-language': 'id',
+        'zoom': 16,
+      },
+      options: Options(
+        // Nominatim mewajibkan User-Agent unik yang mengidentifikasi aplikasi.
+        headers: {'User-Agent': 'PinjamAja/1.0 (rental marketplace app)'},
+        responseType: ResponseType.json,
+      ),
+    );
+    final data = res.data;
+    if (data == null) return '';
+    final addr = data['address'];
+    if (addr is Map) {
+      return _formatNominatim(Map<String, dynamic>.from(addr));
+    }
+    // Fallback: pakai display_name bila struktur address tidak tersedia.
+    final display = data['display_name'];
+    return display is String ? display : '';
+  }
+
+  /// Susun alamat ringkas & rapi dari objek `address` Nominatim.
+  String _formatNominatim(Map<String, dynamic> a) {
+    String? pick(List<String> keys) {
+      for (final k in keys) {
+        final v = a[k];
+        if (v is String && v.trim().isNotEmpty) return v.trim();
+      }
+      return null;
+    }
+
+    // Urut dari yang paling spesifik -> paling umum.
+    final candidates = <String?>[
+      pick(['village', 'suburb', 'neighbourhood', 'hamlet']),
+      pick(['city_district', 'town', 'city', 'municipality']),
+      pick(['county']),
+      pick(['state']),
+    ];
+    // Buang duplikat sambil jaga urutan.
+    final seen = <String>{};
+    final unique = <String>[];
+    for (final c in candidates) {
+      if (c != null && seen.add(c.toLowerCase())) unique.add(c);
+    }
+    return unique.join(', ');
   }
 
   Future<void> _submit() async {
@@ -315,9 +391,25 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
                     : null,
               ),
               const SizedBox(height: 12),
-              _label('Deposit (boleh 0)'),
+              _label('Deposit (min ${(AppConstants.depositMinRate * 100).round()}% dari harga sewa)'),
               const SizedBox(height: 8),
-              _rupiahField(controller: _depositC, hint: '0'),
+              _rupiahField(
+                controller: _depositC,
+                hint: '0',
+                // Deposit wajib >= depositMinRate (mis. 100%) dari harga/hari,
+                // supaya cukup untuk meng-cover denda keterlambatan.
+                validator: (v) {
+                  final price = parseRupiah(_priceC.text);
+                  final deposit = parseRupiah(v ?? '');
+                  final minDeposit =
+                      (price * AppConstants.depositMinRate).round();
+                  if (price > 0 && deposit < minDeposit) {
+                    return 'Deposit minimal Rp ${ThousandsFormatter._group(minDeposit)} '
+                        '(${(AppConstants.depositMinRate * 100).round()}% dari harga sewa)';
+                  }
+                  return null;
+                },
+              ),
               const SizedBox(height: 12),
               _label('Lokasi'),
               const SizedBox(height: 8),

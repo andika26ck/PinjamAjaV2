@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/router/app_routes.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../providers/payment_provider.dart';
 
@@ -20,8 +22,14 @@ class OwnerEarningsScreen extends ConsumerWidget {
           double totalNet = 0, pending = 0;
           for (final p in payouts) {
             final net = (p['net_amount'] as num?)?.toDouble() ?? 0;
-            totalNet += net;
-            if (p['status'] == 'pending') pending += net;
+            final status = p['status'] as String?;
+            if (status == 'completed') {
+              // Total Bersih = hanya payout yang SUDAH dicairkan
+              totalNet += net;
+            } else if (status == 'pending' || status == 'processed') {
+              // Menunggu = payout yang belum/ sedang diproses
+              pending += net;
+            }
           }
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -32,6 +40,18 @@ class OwnerEarningsScreen extends ConsumerWidget {
                   const SizedBox(width: 12),
                   Expanded(child: _summary('Menunggu', Formatters.rupiah(pending), AppColors.secondary)),
                 ],
+              ),
+              const SizedBox(height: 16),
+              // Pintasan ke pengaturan rekening pencairan pemilik.
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.account_balance_wallet_outlined,
+                      color: AppColors.primary),
+                  title: const Text('Rekening Pencairan'),
+                  subtitle: const Text('Atur ke mana hasil sewa ditransfer'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push(AppRoutes.ownerPayoutAccount),
+                ),
               ),
               const SizedBox(height: 16),
               const Text('Riwayat Payout', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
@@ -100,25 +120,18 @@ class OwnerEarningsScreen extends ConsumerWidget {
         ),
       );
 
+  // Status badge SINKRON dengan admin_manual_payouts_screen.dart
   Widget _statusBadge(String status) {
-    Color c;
-    switch (status) {
-      case 'completed':
-        c = AppColors.success;
-        break;
-      case 'processed':
-        c = AppColors.secondary;
-        break;
-      case 'failed':
-        c = AppColors.error;
-        break;
-      default:
-        c = AppColors.textTertiary;
-    }
+    final (label, c) = switch (status) {
+      'completed' => ('Sudah dicairkan', AppColors.success),
+      'processed' => ('Diproses', AppColors.info),
+      'failed' => ('Gagal', AppColors.error),
+      _ => ('Menunggu pencairan', AppColors.secondary),
+    };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(color: c.withOpacity(0.12), borderRadius: BorderRadius.circular(6)),
-      child: Text(status, style: TextStyle(color: c, fontSize: 11, fontWeight: FontWeight.w600)),
+      child: Text(label, style: TextStyle(color: c, fontSize: 11, fontWeight: FontWeight.w600)),
     );
   }
 }

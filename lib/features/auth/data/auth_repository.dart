@@ -29,6 +29,18 @@ abstract class AuthRepository {
 
   Future<void> sendPasswordReset(String email);
 
+  /// Apakah email user yang sedang login sudah terverifikasi.
+  bool get isEmailVerified;
+
+  /// Verifikasi kata sandi lama (konfirmasi sebelum ganti sandi).
+  Future<void> verifyCurrentPassword(String password);
+
+  /// Ganti kata sandi user yang sedang login.
+  Future<void> updatePassword(String newPassword);
+
+  /// Kirim ulang email verifikasi pendaftaran ke [email].
+  Future<void> resendEmailVerification(String email);
+
   Future<UserProfile?> fetchProfile(String userId);
 
   Future<UserProfile> updateRole({

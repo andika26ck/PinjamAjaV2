@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/router/app_routes.dart';
@@ -76,7 +77,13 @@ class ProfileScreen extends ConsumerWidget {
                     subtitle: 'Permintaan sewa untuk barangmu',
                     onTap: () => context.push(AppRoutes.ownerBookings),
                   ),
-                // (+) wishlist: menu Favorit Saya
+                if (isOwner)
+                  _MenuTile(
+                    icon: Icons.account_balance_wallet_outlined,
+                    title: 'Pendapatan Saya',
+                    subtitle: 'Hasil sewa & rekening pencairan',
+                    onTap: () => context.push(AppRoutes.ownerEarnings),
+                  ),
                 _MenuTile(
                   icon: Icons.favorite_border,
                   title: 'Favorit Saya',
@@ -86,9 +93,20 @@ class ProfileScreen extends ConsumerWidget {
                 _MenuTile(
                   icon: Icons.payments_outlined,
                   title: 'Metode Pembayaran',
-                  subtitle: 'Atur metode pembayaran',
-                  onTap: () => _comingSoon(context),
+                  subtitle: 'Lihat metode pembayaran yang didukung',
+                  onTap: () => _showPaymentMethods(context),
                 ),
+
+                // ---- Admin (hanya tampil untuk admin) ----
+                if (profile.isAdmin) ...[
+                  const _SectionLabel('Admin'),
+                  _MenuTile(
+                    icon: Icons.admin_panel_settings_outlined,
+                    title: 'Panel Admin',
+                    subtitle: 'Kelola pengguna, moderasi, & laporan',
+                    onTap: () => context.push(AppRoutes.admin),
+                  ),
+                ],
 
                 // ---- Akun ----
                 const _SectionLabel('Akun'),
@@ -99,18 +117,37 @@ class ProfileScreen extends ConsumerWidget {
                 ),
                 _RoleSwitchTile(profile: profile),
                 _MenuTile(
+                  icon: profile.kycVerified
+                      ? Icons.verified_user_outlined
+                      : Icons.badge_outlined,
+                  title: 'Verifikasi Identitas (KYC)',
+                  subtitle: switch (profile.kycStatus) {
+                    'verified' => 'Terverifikasi ✓',
+                    'pending' => 'Sedang ditinjau admin',
+                    'rejected' => 'Ditolak — ketuk untuk ajukan ulang',
+                    _ => 'Verifikasi agar lebih dipercaya',
+                  },
+                  onTap: () => context.push(AppRoutes.kycSubmission),
+                ),
+                _MenuTile(
                   icon: Icons.lock_outline,
                   title: 'Keamanan',
-                  subtitle: 'Ganti kata sandi',
-                  onTap: () => _changePassword(context, ref),
+                  subtitle: 'Verifikasi email & ganti kata sandi',
+                  onTap: () => context.push(AppRoutes.security),
                 ),
 
                 // ---- Lainnya ----
                 const _SectionLabel('Lainnya'),
                 _MenuTile(
+                  icon: Icons.share_outlined,
+                  title: 'Bagikan Profil',
+                  subtitle: 'Kirim tautan profilmu ke teman',
+                  onTap: () => _shareMyProfile(profile.id, profile.name),
+                ),
+                _MenuTile(
                   icon: Icons.help_outline,
                   title: 'Bantuan & FAQ',
-                  onTap: () => _comingSoon(context),
+                  onTap: () => _showHelpFaq(context),
                 ),
                 _MenuTile(
                   icon: Icons.info_outline,
@@ -137,9 +174,28 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  void _comingSoon(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Segera hadir.')),
+  void _shareMyProfile(String userId, String? name) {
+    final who = (name != null && name.isNotEmpty) ? name : 'aku';
+    Share.share(
+      'Lihat profil $who di PinjamAja 👀\npinjamaja://user/$userId',
+      subject: 'Profil $who — PinjamAja',
+    );
+  }
+
+  void _showPaymentMethods(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => const _PaymentMethodsSheet(),
+    );
+  }
+
+  void _showHelpFaq(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (_) => const _HelpFaqSheet(),
     );
   }
 
@@ -509,6 +565,153 @@ class _RoleSwitchTile extends ConsumerWidget {
                 );
               }
             },
+    );
+  }
+}
+
+/// Bottom sheet: metode pembayaran yang didukung (informasional).
+class _PaymentMethodsSheet extends StatelessWidget {
+  const _PaymentMethodsSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    const methods = [
+      ('Kartu Kredit/Debit', Icons.credit_card, 'Visa, Mastercard, JCB'),
+      ('Virtual Account', Icons.account_balance,
+          'BCA, BNI, BRI, Mandiri, Permata'),
+      ('E-Wallet', Icons.account_balance_wallet_outlined,
+          'GoPay, ShopeePay, dll'),
+      ('QRIS', Icons.qr_code_2, 'Scan dari aplikasi bank/e-wallet apa pun'),
+      ('Gerai Retail', Icons.store_outlined, 'Alfamart, Indomaret'),
+    ];
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Metode Pembayaran',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            const Text(
+              'Pembayaran diproses aman lewat Midtrans. Pilih metode saat checkout.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            for (final m in methods)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    Container(
+                      height: 40,
+                      width: 40,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceVariant,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(m.$2, size: 20, color: AppColors.primary),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(m.$1,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600, fontSize: 14)),
+                          const SizedBox(height: 2),
+                          Text(m.$3,
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textTertiary)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Bottom sheet: Bantuan & FAQ (pertanyaan umum).
+class _HelpFaqSheet extends StatelessWidget {
+  const _HelpFaqSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    const faqs = [
+      (
+        'Bagaimana cara menyewa barang?',
+        'Buka detail barang, pilih tanggal sewa, lalu tekan "Sewa Sekarang" '
+            'dan selesaikan pembayaran. Status sewa dipantau di tab Booking.'
+      ),
+      (
+        'Bagaimana cara menyewakan barang saya?',
+        'Beralih ke peran Pemilik di menu Akun, lalu tambah barang lewat '
+            '"Barang Saya". Isi foto, harga, dan lokasi barang.'
+      ),
+      (
+        'Bagaimana sistem pembayaran & deposit?',
+        'Pembayaran diproses aman lewat Midtrans. Deposit dikembalikan setelah '
+            'barang dikembalikan dalam kondisi baik sesuai kesepakatan.'
+      ),
+      (
+        'Bagaimana jika barang rusak atau hilang?',
+        'Segera hubungi pemilik lewat fitur Chat. Deposit dapat dipakai untuk '
+            'menutup kerusakan sesuai kesepakatan kedua pihak.'
+      ),
+      (
+        'Bagaimana cara menghubungi pemilik?',
+        'Buka profil atau detail barang pemilik, lalu tekan tombol "Hubungi" '
+            'untuk memulai percakapan.'
+      ),
+    ];
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.7,
+      maxChildSize: 0.92,
+      minChildSize: 0.4,
+      builder: (_, controller) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: ListView(
+          controller: controller,
+          children: [
+            const Text('Bantuan & FAQ',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            for (final f in faqs)
+              Card(
+                margin: const EdgeInsets.symmetric(vertical: 6),
+                child: ExpansionTile(
+                  shape: const RoundedRectangleBorder(),
+                  tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+                  childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                  title: Text(f.$1,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600, fontSize: 14)),
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(f.$2,
+                          style: const TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                              height: 1.4)),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -27,6 +27,13 @@ class OwnerBookingsScreen extends ConsumerWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Booking Masuk'),
+          actions: [
+            IconButton(
+              tooltip: 'Beranda',
+              icon: const Icon(Icons.home_outlined),
+              onPressed: () => context.go(AppRoutes.home),
+            ),
+          ],
           bottom: TabBar(
             tabs: [for (final t in _tabs) Tab(text: t.$1)],
           ),
@@ -81,9 +88,11 @@ class _OwnerBookingTile extends ConsumerWidget {
   Future<void> _reject(BuildContext context, WidgetRef ref) async {
     final reason = await _askReason(context);
     if (reason == null) return;
-    await ref
-        .read(bookingControllerProvider.notifier)
-        .rejectBooking(view.booking.id, reason: reason);
+    await ref.read(bookingControllerProvider.notifier).rejectBooking(
+          view.booking.id,
+          reason: reason,
+          refund: view.booking.paymentStatus == 'paid',
+        );
   }
 
   Future<String?> _askReason(BuildContext context) {
@@ -155,7 +164,7 @@ class _OwnerBookingTile extends ConsumerWidget {
       actions.add(Expanded(
         child: ElevatedButton(
           onPressed:
-              busy ? null : () => notifier.markReturned(view.booking.id),
+              busy ? null : () => notifier.markReturned(view.booking),
           child: const Text('Tandai Dikembalikan'),
         ),
       ));
@@ -167,6 +176,22 @@ class _OwnerBookingTile extends ConsumerWidget {
           view: view,
           onTap: () =>
               context.push(AppRoutes.bookingDetailPath(view.booking.id)),
+        ),
+        // Tombol chat ke penyewa — selalu tersedia di tiap kartu booking.
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => context.push(
+                      AppRoutes.chatRoomByBookingPath(view.booking.id)),
+                  icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                  label: const Text('Chat Penyewa'),
+                ),
+              ),
+            ],
+          ),
         ),
         if (actions.isNotEmpty)
           Padding(

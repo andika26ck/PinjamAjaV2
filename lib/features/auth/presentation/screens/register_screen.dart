@@ -34,12 +34,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     super.dispose();
   }
 
+  /// Validasi format email yang lebih ketat (harus ada domain & TLD).
+  bool _isValidEmail(String email) {
+    final re = RegExp(r'^[\w.+-]+@([\w-]+\.)+[\w-]{2,}$');
+    return re.hasMatch(email);
+  }
+
   Future<void> _submit() async {
     setState(() => _autovalidate = true);
     if (!_formKey.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
 
-    final hasSession =
+    final needsVerification =
         await ref.read(authControllerProvider.notifier).signUp(
               fullName: _nameC.text.trim(),
               email: _emailC.text.trim(),
@@ -48,7 +54,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             );
     if (!mounted) return;
 
-    if (hasSession == false) {
+    // Kalau gagal (error), snackbar sudah ditampilkan listener — stop di sini.
+    if (ref.read(authControllerProvider).hasError) return;
+
+    if (needsVerification) {
+      // Konfirmasi email aktif → minta user cek email dulu.
       await showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -65,9 +75,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           ],
         ),
       );
-      if (mounted) context.go(AppRoutes.login);
+    } else {
+      // Pendaftaran selesai → beri tahu user untuk login sendiri.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pendaftaran berhasil! Silakan login.')),
+      );
     }
-    // hasSession == true → router otomatis mengarahkan ke /role-selection.
+
+    // Selalu arahkan ke halaman login — biar user login sendiri.
+    if (mounted) context.go(AppRoutes.login);
   }
 
   @override
@@ -115,7 +131,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     labelText: 'Email',
                     prefixIcon: Icon(Icons.email_outlined),
                   ),
-                  validator: (v) => (v == null || !v.contains('@'))
+                  validator: (v) => (v == null || !_isValidEmail(v.trim()))
                       ? 'Email tidak valid'
                       : null,
                 ),

@@ -42,17 +42,22 @@ class SupabaseAuthRepository implements AuthRepository {
     );
 
     final user = res.user;
-    // Jika session langsung aktif, pastikan baris profil tersimpan
-    // (melengkapi trigger handle_new_user untuk name & phone).
-    if (user != null && res.session != null) {
+    final hasSession = res.session != null;
+
+    // Jika session langsung aktif (konfirmasi email dimatikan),
+    // simpan profil lalu LANGSUNG sign out supaya user tidak auto-login.
+    if (user != null && hasSession) {
       await _client.from('profiles').upsert({
         'id': user.id,
         'name': fullName,
         'phone': phone,
       });
+      await _auth.signOut();
     }
 
-    return res.session != null;
+    // true  = perlu verifikasi email (belum ada session)
+    // false = pendaftaran selesai, user bisa langsung login
+    return !hasSession;
   }
 
   @override
@@ -68,10 +73,45 @@ class SupabaseAuthRepository implements AuthRepository {
   Future<void> signOut() => _auth.signOut();
 
   @override
-  Future<void> sendPasswordReset(String email) => _auth.resetPasswordForEmail(
+  Future<void> sendPasswordReset(String email) async {
+    try {
+      await _auth.resetPasswordForEmail(
         email,
         redirectTo: AppConstants.oauthRedirectUrl,
       );
+    } on StateError catch (e) {
+      // Workaround bug gotrue: kadang melempar "Bad state: Future already
+      // completed" SETELAH email reset benar-benar terkirim (completer PKCE/
+      // redirect ter-complete dua kali). Abaikan khusus error ini agar tidak
+      // muncul error palsu ke user.
+      if (!e.toString().toLowerCase().contains('future already completed')) {
+        rethrow;
+      }
+    }
+  }
+
+  @override
+  bool get isEmailVerified => _auth.currentUser?.emailConfirmedAt != null;
+
+  @override
+  Future<void> verifyCurrentPassword(String password) async {
+    final email = _auth.currentUser?.email;
+    if (email == null || email.isEmpty) {
+      throw AuthException('Email akun tidak ditemukan.');
+    }
+    // Jika kredensial salah, signInWithPassword melempar AuthException.
+    await _auth.signInWithPassword(email: email, password: password);
+  }
+
+  @override
+  Future<void> updatePassword(String newPassword) async {
+    await _auth.updateUser(UserAttributes(password: newPassword));
+  }
+
+  @override
+  Future<void> resendEmailVerification(String email) async {
+    await _auth.resend(type: OtpType.signup, email: email);
+  }
 
   @override
   Future<UserProfile?> fetchProfile(String userId) async {

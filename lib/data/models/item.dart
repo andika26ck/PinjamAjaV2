@@ -48,6 +48,10 @@ class Item {
   final int totalReviews;
   final DateTime? createdAt;
 
+  // --- Moderasi admin (Fase 2 admin) ---
+  final String moderationStatus; // ok | flagged | removed
+  final String? moderationNote;
+
   const Item({
     required this.id,
     required this.ownerId,
@@ -66,6 +70,8 @@ class Item {
     this.rating = 0,
     this.totalReviews = 0,
     this.createdAt,
+    this.moderationStatus = 'ok',
+    this.moderationNote,
   });
 
   String? get thumbnailUrl => imageUrls.isEmpty ? null : imageUrls.first;
@@ -91,6 +97,8 @@ class Item {
       createdAt: json['created_at'] == null
           ? null
           : DateTime.tryParse(json['created_at'] as String),
+      moderationStatus: json['moderation_status'] as String? ?? 'ok',
+      moderationNote: json['moderation_note'] as String?,
     );
   }
 

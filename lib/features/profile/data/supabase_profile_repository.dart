@@ -102,12 +102,37 @@ class SupabaseProfileRepository implements ProfileRepository {
   }
 
   @override
+  Future<int> fetchCompletedTransactions(String userId) async {
+    // Hitung booking 'completed' di mana user jadi penyewa ATAU pemilik.
+    final rows = await _client
+        .from('bookings')
+        .select('id')
+        .or('renter_id.eq.$userId,owner_id.eq.$userId')
+        .eq('status', 'completed');
+    return (rows as List).length;
+  }
+
+  @override
   Future<List<Item>> fetchActiveItems(String userId) async {
     final rows = await _client
         .from('items')
         .select()
         .eq('owner_id', userId)
         .eq('status', 'available')
+        .order('created_at', ascending: false);
+    return (rows as List)
+        .map((e) => Item.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<List<Item>> fetchPublicItems(String userId) async {
+    // Semua barang milik user KECUALI yang dinonaktifkan ('inactive').
+    final rows = await _client
+        .from('items')
+        .select()
+        .eq('owner_id', userId)
+        .neq('status', 'inactive')
         .order('created_at', ascending: false);
     return (rows as List)
         .map((e) => Item.fromJson(e as Map<String, dynamic>))

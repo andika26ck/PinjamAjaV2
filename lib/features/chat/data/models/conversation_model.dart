@@ -1,6 +1,6 @@
-/// Satu baris hasil RPC `get_conversations()`.
+/// Satu baris hasil RPC `get_conversations()` — dikelompokkan per (item + lawan bicara).
 class Conversation {
-  final String bookingId;
+  final String itemId;
   final String otherUserId;
   final String? otherUserName;
   final String? otherUserAvatar;
@@ -9,10 +9,11 @@ class Conversation {
   final String lastMessage;
   final DateTime lastMessageTime;
   final int unreadCount;
-  final String? bookingStatus;
+  final String? lastBookingId;
+  final String? lastBookingStatus;
 
   const Conversation({
-    required this.bookingId,
+    required this.itemId,
     required this.otherUserId,
     this.otherUserName,
     this.otherUserAvatar,
@@ -21,11 +22,12 @@ class Conversation {
     required this.lastMessage,
     required this.lastMessageTime,
     required this.unreadCount,
-    this.bookingStatus,
+    this.lastBookingId,
+    this.lastBookingStatus,
   });
 
   factory Conversation.fromJson(Map<String, dynamic> json) => Conversation(
-        bookingId: json['booking_id'] as String,
+        itemId: json['item_id'] as String,
         otherUserId: json['other_user_id'] as String,
         otherUserName: json['other_user_name'] as String?,
         otherUserAvatar: json['other_user_avatar'] as String?,
@@ -35,6 +37,7 @@ class Conversation {
         lastMessageTime:
             DateTime.parse(json['last_message_time'] as String).toLocal(),
         unreadCount: (json['unread_count'] as num?)?.toInt() ?? 0,
-        bookingStatus: json['booking_status'] as String?,
+        lastBookingId: json['last_booking_id'] as String?,
+        lastBookingStatus: json['last_booking_status'] as String?,
       );
 }

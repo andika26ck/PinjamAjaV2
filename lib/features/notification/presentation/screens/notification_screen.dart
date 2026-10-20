@@ -17,87 +17,123 @@ class NotificationScreen extends ConsumerWidget {
     final async = ref.watch(notificationListProvider);
     final notifier = ref.read(notificationListProvider.notifier);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Notifikasi'),
-        actions: [
-          async.maybeWhen(
-            data: (list) => list.any((n) => !n.isRead)
-                ? TextButton(
-                    onPressed: notifier.markAllRead,
-                    child: const Text('Tandai semua'),
-                  )
-                : const SizedBox.shrink(),
-            orElse: () => const SizedBox.shrink(),
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: () => ref.refresh(notificationListProvider.future),
-        child: async.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => ListView(
-            children: [
-              const SizedBox(height: 120),
-              Center(
-                child: Text(e is AppException
-                    ? e.message
-                    : 'Gagal memuat notifikasi.'),
-              ),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Notifikasi'),
+          actions: [
+            async.maybeWhen(
+              data: (list) => list.any((n) => !n.isRead)
+                  ? TextButton(
+                      onPressed: notifier.markAllRead,
+                      child: const Text('Tandai semua'),
+                    )
+                  : const SizedBox.shrink(),
+              orElse: () => const SizedBox.shrink(),
+            ),
+          ],
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Penyewa'),
+              Tab(text: 'Pemilik'),
             ],
           ),
-          data: (items) {
-            if (items.isEmpty) {
-              return ListView(
-                children: const [
-                  SizedBox(height: 120),
-                  Icon(Icons.notifications_off_outlined,
-                      size: 56, color: AppColors.textTertiary),
-                  SizedBox(height: 12),
-                  Center(
-                    child: Text('Belum ada notifikasi.',
-                        style: TextStyle(color: AppColors.textSecondary)),
-                  ),
-                ],
-              );
-            }
-            return ListView.separated(
-              itemCount: items.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, i) {
-                final n = items[i];
-                return Dismissible(
-                  key: ValueKey(n.id),
-                  direction: DismissDirection.endToStart,
-                  background: Container(
-                    color: AppColors.error,
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 20),
-                    child: const Icon(Icons.delete_outline,
-                        color: Colors.white),
-                  ),
-                  onDismissed: (_) => notifier.remove(n.id),
-                  child: _NotificationTile(
-                    notification: n,
-                    onTap: () {
-                      notifier.markRead(n.id);
-                      _handleTap(context, n);
-                    },
-                  ),
-                );
-              },
-            );
-          },
+        ),
+        body: RefreshIndicator(
+          onRefresh: () => ref.refresh(notificationListProvider.future),
+          child: async.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => ListView(
+              children: [
+                const SizedBox(height: 120),
+                Center(
+                  child: Text(e is AppException
+                      ? e.message
+                      : 'Gagal memuat notifikasi.'),
+                ),
+              ],
+            ),
+            data: (items) => TabBarView(
+              children: [
+                // Tab Penyewa: audience 'renter' + 'both' (mis. pesan)
+                _buildList(
+                  context,
+                  notifier,
+                  items.where((n) => n.roleAudience != 'owner').toList(),
+                ),
+                // Tab Pemilik: audience 'owner' + 'both'
+                _buildList(
+                  context,
+                  notifier,
+                  items.where((n) => n.roleAudience != 'renter').toList(),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildList(
+    BuildContext context,
+    NotificationList notifier,
+    List<AppNotification> items,
+  ) {
+    if (items.isEmpty) {
+      return ListView(
+        children: const [
+          SizedBox(height: 120),
+          Icon(Icons.notifications_off_outlined,
+              size: 56, color: AppColors.textTertiary),
+          SizedBox(height: 12),
+          Center(
+            child: Text('Belum ada notifikasi.',
+                style: TextStyle(color: AppColors.textSecondary)),
+          ),
+        ],
+      );
+    }
+    return ListView.separated(
+      itemCount: items.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (context, i) {
+        final n = items[i];
+        return Dismissible(
+          key: ValueKey(n.id),
+          direction: DismissDirection.endToStart,
+          background: Container(
+            color: AppColors.error,
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: 20),
+            child: const Icon(Icons.delete_outline, color: Colors.white),
+          ),
+          onDismissed: (_) => notifier.remove(n.id),
+          child: _NotificationTile(
+            notification: n,
+            onTap: () {
+              notifier.markRead(n.id);
+              _handleTap(context, n);
+            },
+          ),
+        );
+      },
     );
   }
 
   void _handleTap(BuildContext context, AppNotification n) {
     switch (n.type) {
       case AppNotificationType.newMessage:
+        // Chat pra-booking: utamakan (item + pengirim); fallback ke booking lama.
+        final itemId = n.itemId;
+        final senderId = n.senderId;
         final bid = n.bookingId;
-        if (bid != null) context.push(AppRoutes.chatRoomPath(bid));
+        if (itemId != null && senderId != null) {
+          context.push(AppRoutes.chatRoomPath(itemId, senderId));
+        } else if (bid != null) {
+          context.push(AppRoutes.chatRoomByBookingPath(bid));
+        }
         break;
       case AppNotificationType.bookingRequest:
       case AppNotificationType.bookingConfirmed:

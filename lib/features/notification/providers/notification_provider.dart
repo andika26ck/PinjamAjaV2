@@ -83,6 +83,7 @@ class NotificationList extends _$NotificationList {
         title: n.title,
         body: n.body,
         data: n.data,
+        audience: n.audience,
         isRead: true,
         createdAt: n.createdAt,
       );

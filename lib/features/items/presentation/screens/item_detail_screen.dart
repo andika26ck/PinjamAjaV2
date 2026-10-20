@@ -12,7 +12,8 @@ import '../../../../core/widgets/item_card.dart';
 import '../../../../data/models/item.dart';
 import '../../../../data/models/review.dart';
 import '../../../../data/models/user_profile.dart';
-import '../../../wishlist/presentation/widgets/wishlist_button.dart'; // (+) wishlist
+import '../../../auth/providers/auth_provider.dart';
+import '../../../wishlist/presentation/widgets/wishlist_button.dart';
 import '../../providers/item_detail_provider.dart';
 import '../widgets/review_card.dart';
 
@@ -71,12 +72,12 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
           expandedHeight: 300,
           backgroundColor: AppColors.surface,
           foregroundColor: Colors.white,
-          // (+) wishlist: tombol ♡ di kanan atas app bar (di atas foto)
           actions: [
+            // Ikon ♡ favorit di pojok kanan atas detail barang.
             WishlistButton(
               itemId: item.id,
-              size: 26,
-              inactiveColor: Colors.white,
+              size: 24,
+              withBackground: true,
             ),
             const SizedBox(width: 8),
           ],
@@ -92,7 +93,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
               children: [
                 _titleSection(item),
                 const SizedBox(height: 16),
-                _contactOwnerButton(),
+                _contactOwnerButton(item),
                 const SizedBox(height: 20),
                 _priceSection(item),
                 const SizedBox(height: 24),
@@ -175,15 +176,18 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
     );
   }
 
-  // 3. Hubungi Owner
-  Widget _contactOwnerButton() {
+  // 3. Hubungi Owner (disembunyikan bila item milik sendiri)
+  Widget _contactOwnerButton(Item item) {
+    final myId = ref.watch(appAuthProvider).profile?.id;
+    if (myId != null && myId == item.ownerId) {
+      return const SizedBox.shrink();
+    }
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
-        onPressed: () {
-          // TODO(Fase 5): buka ChatScreen dengan owner terkait.
-          context.push(AppRoutes.chat);
-        },
+        onPressed: () => context.push(
+          AppRoutes.chatRoomPath(item.id, item.ownerId),
+        ),
         icon: const Icon(Icons.chat_bubble_outline, size: 18),
         label: const Text('Hubungi Owner'),
       ),
@@ -288,10 +292,11 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
             ),
           ),
           TextButton(
-            onPressed: () {
-              // TODO(Fase 6): buka profil publik owner.
-              context.push(AppRoutes.profile);
-            },
+            // Buka profil PUBLIK pemilik ('/user/:id', route full-screen di
+            // rootKey). Jangan push AppRoutes.profile karena itu cabang
+            // ShellRoute (shellKey) → GlobalKey duplikat → crash navigator.
+            onPressed: () =>
+                context.push(AppRoutes.publicProfilePath(owner.id)),
             child: const Text('Lihat Profil'),
           ),
         ],
@@ -373,7 +378,9 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
       children: [
         Text('Ulasan (${reviews.length})',
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 4),
+        const SizedBox(height: 12),
+        _ReviewOverview(reviews: reviews),
+        const SizedBox(height: 12),
         ...shown.map((r) => ReviewCard(review: r)),
         if (reviews.length > 3)
           TextButton(
@@ -420,13 +427,121 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
   }
 }
 
+/// Ringkasan rating barang: rata-rata besar + distribusi bintang 5→1.
+class _ReviewOverview extends StatelessWidget {
+  final List<Review> reviews;
+  const _ReviewOverview({required this.reviews});
+
+  @override
+  Widget build(BuildContext context) {
+    final total = reviews.length;
+    final avg = total == 0
+        ? 0.0
+        : reviews.map((r) => r.rating).reduce((a, b) => a + b) / total;
+    final counts = <int, int>{for (var s = 1; s <= 5; s++) s: 0};
+    for (final r in reviews) {
+      final star = r.rating.round();
+      if (star >= 1 && star <= 5) counts[star] = counts[star]! + 1;
+    }
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceVariant,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Column(
+            children: [
+              Text(avg.toStringAsFixed(1),
+                  style: const TextStyle(
+                      fontSize: 40, fontWeight: FontWeight.w700, height: 1)),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(5, (i) {
+                  IconData icon;
+                  if (avg >= i + 1) {
+                    icon = Icons.star_rounded;
+                  } else if (avg >= i + 0.5) {
+                    icon = Icons.star_half_rounded;
+                  } else {
+                    icon = Icons.star_outline_rounded;
+                  }
+                  return Icon(icon, size: 16, color: AppColors.secondary);
+                }),
+              ),
+              const SizedBox(height: 4),
+              Text('$total ulasan',
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary)),
+            ],
+          ),
+          const SizedBox(width: 20),
+          Expanded(
+            child: Column(
+              children: [
+                for (var s = 5; s >= 1; s--)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      children: [
+                        Text('$s', style: const TextStyle(fontSize: 12)),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.star_rounded,
+                            size: 12, color: AppColors.secondary),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: total == 0 ? 0 : counts[s]! / total,
+                              minHeight: 8,
+                              backgroundColor: AppColors.border,
+                              valueColor: const AlwaysStoppedAnimation(
+                                  AppColors.secondary),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 24,
+                          child: Text('${counts[s]}',
+                              textAlign: TextAlign.end,
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary)),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // Bottom bar sticky
-class _BottomBar extends StatelessWidget {
+class _BottomBar extends ConsumerWidget {
   final Item item;
   const _BottomBar({required this.item});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watch(appAuthProvider).profile;
+    final isRenter = profile?.role == UserRole.renter;
+    final isMyItem = profile != null && profile.id == item.ownerId;
+    final canRent = isRenter && !isMyItem;
+
+    // Alasan kalau tidak boleh menyewa
+    final String blockReason = isMyItem
+        ? 'Ini barang milikmu — tidak bisa menyewa barang sendiri.'
+        : 'Akun pemilik tidak bisa menyewa. Ganti peran ke Penyewa dulu di Profil.';
+
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -454,12 +569,21 @@ class _BottomBar extends StatelessWidget {
             ),
             const Spacer(),
             ElevatedButton(
-              onPressed: () {
-                // Fase 4: BookingScreen membaca path param sebagai item_id.
-                context.push(AppRoutes.bookingPath(item.id), extra: item);
-              },
+              onPressed: canRent
+                  ? () {
+                      // Fase 4: BookingScreen membaca path param sebagai item_id.
+                      context.push(AppRoutes.bookingPath(item.id), extra: item);
+                    }
+                  : () {
+                      ScaffoldMessenger.of(context)
+                        ..hideCurrentSnackBar()
+                        ..showSnackBar(
+                          SnackBar(content: Text(blockReason)),
+                        );
+                    },
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(160, 48),
+                backgroundColor: canRent ? null : AppColors.textTertiary,
               ),
               child: const Text('Sewa Sekarang'),
             ),

@@ -25,6 +25,7 @@ class AppNotification {
   final String title;
   final String body;
   final Map<String, dynamic> data;
+  final String? audience; // 'owner' | 'renter' | null (notif lama)
   final bool isRead;
   final DateTime createdAt;
 
@@ -35,12 +36,32 @@ class AppNotification {
     required this.title,
     required this.body,
     required this.data,
+    this.audience,
     required this.isRead,
     required this.createdAt,
   });
 
   String? get bookingId => data['booking_id'] as String?;
   String? get itemId => data['item_id'] as String?;
+  String? get senderId => data['sender_id'] as String?;
+
+  /// 'owner' | 'renter' | 'both' — untuk memisah tab notifikasi.
+  String get roleAudience {
+    if (audience == 'owner' || audience == 'renter') return audience!;
+    switch (type) {
+      case AppNotificationType.bookingRequest:
+      case AppNotificationType.newReview:
+        return 'owner';
+      case AppNotificationType.bookingConfirmed:
+      case AppNotificationType.bookingCancelled:
+      case AppNotificationType.bookingCompleted:
+      case AppNotificationType.paymentSuccess:
+        return 'renter';
+      case AppNotificationType.newMessage:
+      case AppNotificationType.unknown:
+        return 'both';
+    }
+  }
 
   factory AppNotification.fromJson(Map<String, dynamic> json) =>
       AppNotification(
@@ -50,6 +71,7 @@ class AppNotification {
         title: json['title'] as String? ?? '',
         body: json['body'] as String? ?? '',
         data: (json['data'] as Map?)?.cast<String, dynamic>() ?? const {},
+        audience: json['audience'] as String?,
         isRead: json['is_read'] as bool? ?? false,
         createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
       );

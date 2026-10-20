@@ -2,7 +2,8 @@ class Message {
   final String id;
   final String senderId;
   final String receiverId;
-  final String bookingId;
+  final String itemId;
+  final String? bookingId; // opsional: hanya untuk konteks booking
   final String message;
   final bool isRead;
   final DateTime timestamp;
@@ -14,7 +15,8 @@ class Message {
     required this.id,
     required this.senderId,
     required this.receiverId,
-    required this.bookingId,
+    required this.itemId,
+    this.bookingId,
     required this.message,
     required this.isRead,
     required this.timestamp,
@@ -25,7 +27,8 @@ class Message {
         id: json['id'] as String,
         senderId: json['sender_id'] as String,
         receiverId: json['receiver_id'] as String,
-        bookingId: json['booking_id'] as String,
+        itemId: json['item_id'] as String? ?? '',
+        bookingId: json['booking_id'] as String?,
         message: json['message'] as String? ?? '',
         isRead: json['is_read'] as bool? ?? false,
         timestamp: DateTime.parse(json['timestamp'] as String).toLocal(),
@@ -35,7 +38,8 @@ class Message {
   Map<String, dynamic> toInsert() => {
         'sender_id': senderId,
         'receiver_id': receiverId,
-        'booking_id': bookingId,
+        'item_id': itemId,
+        if (bookingId != null) 'booking_id': bookingId,
         'message': message,
       };
 
@@ -43,6 +47,7 @@ class Message {
         id: id ?? this.id,
         senderId: senderId,
         receiverId: receiverId,
+        itemId: itemId,
         bookingId: bookingId,
         message: message,
         isRead: isRead ?? this.isRead,

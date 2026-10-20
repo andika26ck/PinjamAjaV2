@@ -16,6 +16,16 @@ class Booking {
   final String? cancellationReason;
   final String? notes;
   final DateTime? createdAt;
+  final DateTime? expiresAt;
+  final DateTime? startedAt;
+  final DateTime? returnedAt;
+  final int lateDays;
+  final int lateFee;
+  final int? depositRefund;
+  final String lateFeeStatus;
+  final DateTime? confirmationDeadline;
+  final String refundStatus;
+  final DateTime? refundedAt;
 
   const Booking({
     required this.id,
@@ -34,6 +44,16 @@ class Booking {
     this.cancellationReason,
     this.notes,
     this.createdAt,
+    this.expiresAt,
+    this.startedAt,
+    this.returnedAt,
+    this.lateDays = 0,
+    this.lateFee = 0,
+    this.depositRefund,
+    this.lateFeeStatus = 'none',
+    this.confirmationDeadline,
+    this.refundStatus = 'none',
+    this.refundedAt,
   });
 
   factory Booking.fromJson(Map<String, dynamic> json) {
@@ -46,7 +66,7 @@ class Booking {
       ownerId: json['owner_id'] as String? ?? '',
       startDate: p(json['start_date']),
       endDate: p(json['end_date']),
-      totalDay: (json['total_day'] as num?)?.toInt() ?? 0,
+      totalDay: (json['total_days'] as num?)?.toInt() ?? 0,
       pricePerDay: (json['price_per_day'] as num?)?.toInt() ?? 0,
       depositAmount: (json['deposit_amount'] as num?)?.toInt() ?? 0,
       platformFee: (json['platform_fee'] as num?)?.toInt() ?? 0,
@@ -56,6 +76,16 @@ class Booking {
       cancellationReason: json['cancellation_reason'] as String?,
       notes: json['notes'] as String?,
       createdAt: p(json['created_at']),
+      expiresAt: p(json['expires_at']),
+      startedAt: p(json['started_at']),
+      returnedAt: p(json['returned_at']),
+      lateDays: (json['late_days'] as num?)?.toInt() ?? 0,
+      lateFee: (json['late_fee'] as num?)?.toInt() ?? 0,
+      depositRefund: (json['deposit_refund'] as num?)?.toInt(),
+      lateFeeStatus: json['late_fee_status'] as String? ?? 'none',
+      confirmationDeadline: p(json['confirmation_deadline']),
+      refundStatus: json['refund_status'] as String? ?? 'none',
+      refundedAt: p(json['refunded_at']),
     );
   }
 }

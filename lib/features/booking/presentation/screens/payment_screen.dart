@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/router/app_routes.dart';
 import '../../../../core/utils/app_exception.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../data/models/booking.dart';
@@ -39,6 +41,19 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     Navigator.of(context).pushReplacement(MaterialPageRoute(
       builder: (_) => BookingSuccessScreen(booking: paid),
     ));
+  }
+
+  void _payLater() {
+    // Booking sudah tersimpan sebagai 'awaiting_payment' (berlaku 24 jam).
+    // Cukup arahkan ke daftar booking; user bisa lanjut bayar kapan saja
+    // dari tab "Belum Bayar".
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+            'Booking disimpan. Selesaikan pembayaran dalam 24 jam lewat tab "Belum Bayar".'),
+      ),
+    );
+    context.go(AppRoutes.myBookings);
   }
 
   @override
@@ -147,15 +162,27 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: ElevatedButton(
-            onPressed: loading ? null : _pay,
-            child: loading
-                ? const SizedBox(
-                    height: 22,
-                    width: 22,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2.5, color: Colors.white))
-                : Text('Bayar Sekarang · ${Formatters.rupiah(b.totalPrice)}'),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ElevatedButton(
+                onPressed: loading ? null : _pay,
+                child: loading
+                    ? const SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2.5, color: Colors.white))
+                    : Text(
+                        'Bayar Sekarang · ${Formatters.rupiah(b.totalPrice)}'),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: loading ? null : _payLater,
+                icon: const Icon(Icons.schedule, size: 18),
+                label: const Text('Bayar Nanti'),
+              ),
+            ],
           ),
         ),
       ),
